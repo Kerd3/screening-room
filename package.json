@@ -23,7 +23,8 @@
     "test:e2e:report": "playwright show-report",
     "typecheck": "next typegen && tsc --noEmit",
     "recs:eval": "tsx --conditions=react-server scripts/evaluate-recs.ts",
-    "recs:tune": "tsx --conditions=react-server scripts/tune-recs.ts"
+    "recs:tune": "tsx --conditions=react-server scripts/tune-recs.ts",
+    "recs:tune-cf": "tsx --conditions=react-server scripts/tune-cf.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

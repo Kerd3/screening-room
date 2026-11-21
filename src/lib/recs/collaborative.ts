@@ -5,13 +5,25 @@
  * of 6 or more counts score/10. Lower ratings are left out, because "watched and
  * disliked" isn't evidence that two titles go together. Similarity between two
  * titles is the cosine of their user vectors, kept only when at least
- * MIN_CO_COUNT users share both.
+ * minCoCount users share both.
  */
 
 export type UserVectors = Map<string, Map<number, number>>; // userId -> titleId -> weight
 
-export const MIN_CO_COUNT = 2;
-export const NEIGHBORS_PER_ITEM = 30;
+export interface CfParams {
+  /** Pairs saved together by fewer users than this are ignored. */
+  minCoCount: number;
+  /** Strongest neighbors kept per title. */
+  neighbors: number;
+  /** Shrinkage: similarity x coCount / (coCount + shrinkage); 0 turns it off. */
+  shrinkage: number;
+  /** At scoring time, pairs with fewer co-savers than this count proportionally less (1 = off). */
+  dampingCoCount: number;
+}
+
+/** Production settings. Tuned with `npm run recs:tune-cf`; see docs/recommendation-tuning.md. */
+export const CF_PARAMS: CfParams = { minCoCount: 2, neighbors: 30, shrinkage: 0, dampingCoCount: 5 };
+
 const MAX_ITEMS_PER_USER = 300; // bounds the O(k^2) pair loop for heavy users
 
 export interface SimilarityRow {
@@ -36,7 +48,10 @@ export function buildUserVectors(
   return users;
 }
 
-export function computeItemSimilarity(users: UserVectors): SimilarityRow[] {
+export function computeItemSimilarity(
+  users: UserVectors,
+  { minCoCount, neighbors, shrinkage }: Pick<CfParams, "minCoCount" | "neighbors" | "shrinkage"> = CF_PARAMS,
+): SimilarityRow[] {
   const norms = new Map<number, number>(); // titleId -> sum of squared weights
   const dots = new Map<string, { dot: number; co: number }>();
 
@@ -58,12 +73,13 @@ export function computeItemSimilarity(users: UserVectors): SimilarityRow[] {
 
   const rows: SimilarityRow[] = [];
   for (const [key, { dot, co }] of dots) {
-    if (co < MIN_CO_COUNT) continue;
+    if (co < minCoCount) continue;
     const [a, b] = key.split(":").map(Number);
-    const score = dot / Math.sqrt(norms.get(a)! * norms.get(b)!);
+    const cosine = dot / Math.sqrt(norms.get(a)! * norms.get(b)!);
+    const score = shrinkage > 0 ? (cosine * co) / (co + shrinkage) : cosine;
     rows.push({ titleAId: a, titleBId: b, score, coCount: co });
   }
-  return keepTopNeighbors(rows, NEIGHBORS_PER_ITEM);
+  return keepTopNeighbors(rows, neighbors);
 }
 
 /** Keeps a pair if it ranks in the top N for either of its two titles. */
@@ -93,6 +109,7 @@ function keepTopNeighbors(rows: SimilarityRow[], n: number) {
 export function scoreForUser(
   userItems: Map<number, number>,
   neighbors: SimilarityRow[],
+  { dampingCoCount }: Pick<CfParams, "dampingCoCount"> = CF_PARAMS,
 ): Map<number, { score: number; because: number }> {
   const acc = new Map<number, { sum: number; because: number; best: number }>();
   for (const r of neighbors) {
@@ -104,7 +121,7 @@ export function scoreForUser(
       if (w === undefined || userItems.has(other)) continue;
       const cell = acc.get(other) ?? { sum: 0, because: mine, best: 0 };
       // Weighting by co-count damps pairs supported by only a couple of users.
-      const contribution = w * r.score * Math.min(1, r.coCount / 5);
+      const contribution = w * r.score * Math.min(1, r.coCount / dampingCoCount);
       cell.sum += contribution;
       if (contribution > cell.best) {
         cell.best = contribution;

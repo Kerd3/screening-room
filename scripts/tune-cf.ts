@@ -1,0 +1,118 @@
+/**
+ * Tunes the collaborative-filtering settings inside the production ranking.
+ *
+ *   npm run recs:tune-cf             print the search results
+ *   npm run recs:tune-cf -- --write  also append the results to docs/recommendation-tuning.md
+ *
+ * Same protocol as recs:tune: choose by NDCG@10 on validation splits, confirm
+ * on separate test splits, and recommend a change only if the paired gain is
+ * more than two standard errors above zero.
+ */
+import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import { db } from "@/lib/db";
+import { CF_PARAMS, type CfParams } from "@/lib/recs/collaborative";
+import { evaluate, makeHybrid, STRATEGIES, type Strategy } from "@/lib/recs/evaluate";
+import { pairedComparison, pct, relChange, TEST_SEEDS, VALIDATION_SEEDS } from "@/lib/recs/tuning";
+import { loadEvalData } from "./lib/eval-data";
+
+const GRID = {
+  minCoCount: [1, 2, 3, 4],
+  neighbors: [10, 20, 30, 50, 100],
+  shrinkage: [0, 2, 5, 10, 25],
+  dampingCoCount: [1, 3, 5, 10],
+};
+
+const label = (p: CfParams) =>
+  `min co-savers ${p.minCoCount} / neighbors ${p.neighbors} / shrinkage ${p.shrinkage} / damping ${p.dampingCoCount === 1 ? "off" : p.dampingCoCount}`;
+
+async function main() {
+  const { interactions, catalog } = await loadEvalData();
+
+  const strategies: Record<string, Strategy> = {};
+  const configs = new Map<string, CfParams>();
+  for (const minCoCount of GRID.minCoCount)
+    for (const neighbors of GRID.neighbors)
+      for (const shrinkage of GRID.shrinkage)
+        for (const dampingCoCount of GRID.dampingCoCount) {
+          const p = { minCoCount, neighbors, shrinkage, dampingCoCount };
+          strategies[label(p)] = makeHybrid({ cf: p });
+          configs.set(label(p), p);
+        }
+  const current = label(CF_PARAMS);
+  strategies[current] ??= makeHybrid();
+  configs.set(current, CF_PARAMS);
+
+  console.log(`Searching ${Object.keys(strategies).length} collaborative-filtering settings on ${VALIDATION_SEEDS.length} validation splits...`);
+  const t0 = performance.now();
+  const validation = evaluate(interactions, catalog, { k: 10, seeds: VALIDATION_SEEDS, strategies });
+  console.log(`Done in ${Math.round((performance.now() - t0) / 1000)} s.\n`);
+
+  const ranked = [...validation.results].sort((a, b) => b.ndcg - a.ndcg);
+  const best = ranked[0];
+  const bestParams = configs.get(best.strategy)!;
+  const currentRow = validation.results.find((r) => r.strategy === current)!;
+  const currentRank = ranked.findIndex((r) => r.strategy === current) + 1;
+  const searchTable = [
+    "| Rank | Collaborative settings | NDCG@10 | Recall@10 | Coverage |",
+    "|---|---|---|---|---|",
+    ...ranked.slice(0, 8).map((r, i) => `| ${i + 1} | ${r.strategy} | ${r.ndcg.toFixed(3)} | ${pct(r.recall)} | ${pct(r.coverage)} |`),
+    `| ${currentRank} | ${current} (current) | ${currentRow.ndcg.toFixed(3)} | ${pct(currentRow.recall)} | ${pct(currentRow.coverage)} |`,
+  ].join("\n");
+  console.log(`Validation (seeds ${VALIDATION_SEEDS.join(", ")}):\n\n${searchTable}\n`);
+
+  const tuned = makeHybrid({ cf: bestParams });
+  const confirm = evaluate(interactions, catalog, {
+    k: 10,
+    seeds: TEST_SEEDS,
+    strategies: {
+      popularity: STRATEGIES.popularity,
+      "current production": makeHybrid(),
+      "tuned collaborative settings": tuned,
+    },
+  });
+  const testTable = [
+    "| Strategy | Precision@10 | Recall@10 | NDCG@10 | Hit rate@10 | Coverage |",
+    "|---|---|---|---|---|---|",
+    ...confirm.results.map(
+      (r) => `| ${r.strategy} | ${pct(r.precision)} | ${pct(r.recall)} | ${r.ndcg.toFixed(3)} | ${pct(r.hitRate)} | ${pct(r.coverage)} |`,
+    ),
+  ].join("\n");
+
+  const cur = confirm.results.find((r) => r.strategy === "current production")!;
+  const tun = confirm.results.find((r) => r.strategy === "tuned collaborative settings")!;
+  const paired = pairedComparison(interactions, catalog, makeHybrid(), tuned, TEST_SEEDS);
+  const isCurrent = best.strategy === current;
+  const verdict =
+    `Tuned vs current on held-out test splits: NDCG@10 ${relChange(cur.ndcg, tun.ndcg)}, recall@10 ${relChange(cur.recall, tun.recall)}, ` +
+    `coverage ${pct(cur.coverage)} -> ${pct(tun.coverage)}. Paired NDCG difference per split: ` +
+    `${paired.mean >= 0 ? "+" : ""}${paired.mean.toFixed(4)} ± ${(2 * paired.se).toFixed(4)} (2 standard errors). ` +
+    (isCurrent
+      ? "The current settings are already the best: keep them."
+      : paired.significant
+        ? `Recommendation: switch to CF_PARAMS = ${JSON.stringify(bestParams)}.`
+        : "Recommendation: keep the current settings; the gain is within the noise.");
+  console.log(`Test (seeds ${TEST_SEEDS[0]}-${TEST_SEEDS.at(-1)}, not used for choosing):\n\n${testTable}\n\n${verdict}`);
+
+  if (process.argv.includes("--write")) {
+    const file = path.join("docs", "recommendation-tuning.md");
+    const section =
+      `\n## Collaborative-filtering settings\n\nGenerated by \`npm run recs:tune-cf -- --write\` on ${new Date().toISOString().slice(0, 10)}. ` +
+      `Grid over minimum co-savers ${GRID.minCoCount.join("/")}, neighbors ${GRID.neighbors.join("/")}, ` +
+      `shrinkage ${GRID.shrinkage.join("/")} and damping ${GRID.dampingCoCount.join("/")} ` +
+      `(${Object.keys(strategies).length} settings), scored inside the production ranking.\n\n` +
+      `### Validation (used to choose)\n\n${searchTable}\n\n### Test (not used to choose)\n\n${testTable}\n\n${verdict}\n`;
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "# Recommendation tuning\n";
+    const marker = "\n## Collaborative-filtering settings";
+    fs.writeFileSync(file, (existing.includes(marker) ? existing.slice(0, existing.indexOf(marker)) : existing.trimEnd() + "\n") + section);
+    console.log(`Wrote ${file}`);
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  })
+  .finally(() => db.$disconnect());

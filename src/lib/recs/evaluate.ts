@@ -11,7 +11,14 @@
  * TMDB, while offline evaluation ranks the local catalog only, so no network
  * calls are made and results are reproducible.
  */
-import { buildUserVectors, computeItemSimilarity, scoreForUser, type SimilarityRow } from "./collaborative";
+import {
+  buildUserVectors,
+  CF_PARAMS,
+  computeItemSimilarity,
+  scoreForUser,
+  type CfParams,
+  type SimilarityRow,
+} from "./collaborative";
 import {
   blend,
   DIVERSITY_SHARE,
@@ -137,7 +144,8 @@ export interface UserContext {
 
 export interface SharedContext {
   catalog: CatalogEntry[];
-  similarity: SimilarityRow[];
+  /** Item-similarity table for the given collaborative settings (memoized per split). */
+  similarityFor: (params?: CfParams) => SimilarityRow[];
   rand: () => number;
 }
 
@@ -146,20 +154,22 @@ export type Strategy = (user: UserContext, shared: SharedContext, k: number) => 
 const byPopularity = (a: CatalogEntry, b: CatalogEntry) => b.item.popularity - a.item.popularity;
 const unseen = (user: UserContext, shared: SharedContext) => shared.catalog.filter((c) => !user.seen.has(c.titleId));
 
-function cfScores(user: UserContext, shared: SharedContext) {
-  return scoreForUser(user.liked, shared.similarity);
+function cfScores(user: UserContext, shared: SharedContext, params: CfParams = CF_PARAMS) {
+  return scoreForUser(user.liked, shared.similarityFor(params), params);
 }
 
 /**
- * Ranks with the production blend. Defaults to the production weights and
- * genre cap; the tuner passes alternatives. diversityShare 1 means no cap.
+ * Ranks with the production blend. Defaults to the production weights, genre
+ * cap and collaborative settings; the tuners pass alternatives.
+ * diversityShare 1 means no cap.
  */
 export function makeHybrid({
   warm = WARM_WEIGHTS,
   diversityShare = DIVERSITY_SHARE,
-}: { warm?: Weights; diversityShare?: number } = {}): Strategy {
+  cf: cfParams = CF_PARAMS,
+}: { warm?: Weights; diversityShare?: number; cf?: CfParams } = {}): Strategy {
   return (user, shared, k) => {
-    const cf = cfScores(user, shared);
+    const cf = cfScores(user, shared, cfParams);
     const norm = normalize([...cf.values()].map((s) => s.score));
     const candidates: Candidate[] = unseen(user, shared).map((c) => ({
       key: String(c.titleId),
@@ -256,9 +266,16 @@ export function evaluate(
     const ratings = train
       .filter((i) => i.kind === "rating")
       .map(({ userId, titleId, score }) => ({ userId, titleId, score: score ?? 0 }));
+    const vectors = buildUserVectors(bookmarks, ratings);
+    const tables = new Map<string, SimilarityRow[]>();
     const shared: SharedContext = {
       catalog: catalogList,
-      similarity: computeItemSimilarity(buildUserVectors(bookmarks, ratings)),
+      similarityFor: (p = CF_PARAMS) => {
+        const key = `${p.minCoCount}:${p.neighbors}:${p.shrinkage}`;
+        let rows = tables.get(key);
+        if (!rows) tables.set(key, (rows = computeItemSimilarity(vectors, p)));
+        return rows;
+      },
       rand: mulberry32(seed * 7919),
     };
     const users = buildUsers(train, catalog);

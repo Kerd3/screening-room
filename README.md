@@ -139,7 +139,19 @@ Results on that data (373 titles, 101 users, 3,369 bookmarks and ratings):
 - The validation winner looked 3% better, but on the unseen test splits it was 2% worse, and its catalog coverage fell from 36% to 24%.
 - So the tuner keeps the current weights. Shipping the "best" configuration would have meant tuning to noise.
 
-The full search is in [docs/recommendation-tuning.md](docs/recommendation-tuning.md).
+`npm run recs:tune-cf` applies the same protocol to collaborative filtering's own settings, scored inside the full production ranking (400 settings in total):
+- minimum users who must have saved both titles (1 to 4),
+- neighbors kept per title (10 to 100),
+- shrinkage of weakly supported similarities (0 to 25),
+- damping of pairs with few co-savers (off to 10).
+
+**Outcome: the current settings stayed.**
+- Keeping more neighbors per title (100 instead of 30) looked about 6% better on validation.
+- On the unseen test splits the gain was only +0.9% NDCG and +1.1% recall, with no coverage cost.
+- The paired check put it within the noise (+0.0017 ± 0.0052 per split), so it wasn't shipped.
+- It's a candidate to re-test once there's more real data.
+
+Both searches are in [docs/recommendation-tuning.md](docs/recommendation-tuning.md).
 
 ### Guarding quality in CI
 
@@ -215,6 +227,7 @@ To refresh `dev` with current production data, reset the branch from its parent 
 | `npm run recs:rebuild` | Recompute every genre profile and the similarity table |
 | `npm run recs:eval` | Offline hold-out evaluation of the recommender against baselines. `-- --write` saves the results to `docs/`, and `-- --check` fails if quality regresses |
 | `npm run recs:tune` | Grid search over the blend weights and genre cap, with validation and test splits and a paired significance check (takes about 5 minutes) |
+| `npm run recs:tune-cf` | The same search over collaborative filtering's settings (takes about 3 minutes) |
 | `npm run alerts:check` | Check bookmarked series for new seasons. Production schedulers call `POST /api/cron/check-seasons` with `Authorization: Bearer $CRON_SECRET` |
 | `npm run db:studio` | Browse the database |
 

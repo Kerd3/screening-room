@@ -109,7 +109,7 @@ Requirements: Node 20 or later.
    ```
 
 2. Copy `.env.example` to `.env` and fill it in:
-   - **`DATABASE_URL`** and **`DATABASE_URL_UNPOOLED`**: a free Neon Postgres database. On Vercel, add one under Storage → Neon, then `npx vercel env pull .env` copies both URLs.
+   - **`DATABASE_URL`** and **`DATABASE_URL_UNPOOLED`**: a free Neon Postgres database. Use a development branch, not the production one (see Environments and databases below). `npx vercel env pull .env.local` copies the Development values.
    - **`TMDB_READ_TOKEN`**: free from themoviedb.org → Settings → API → *API Read Access Token*.
    - **`SESSION_PASSWORD`**: any random string of 32 or more characters.
    - **`CRON_SECRET`**: any random string.
@@ -137,6 +137,22 @@ Requirements: Node 20 or later.
    ```
 
 **Demo login:** `demo@example.com` / `screening-demo`. The demo account is seeded with three friends, a pending request and some shared titles.
+
+### Environments and databases
+
+Each environment has its own database, so local work and tests never touch live data:
+
+| Environment | Database |
+|---|---|
+| Production (Vercel) | Neon `main` branch |
+| Preview deployments and local development | Neon `dev` branch, a copy of `main` taken when it was created |
+| CI (GitHub Actions) | A throwaway Postgres container, created fresh for every run |
+
+To refresh `dev` with current production data, reset the branch from its parent in the Neon console (or with `neonctl branches reset dev --parent`).
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request. It runs lint, type-check (`npm run typecheck`) and the unit tests, then builds the app and runs the Playwright suite against the production build. The Playwright report is attached to each run. CI needs one repository secret: `TMDB_READ_TOKEN`.
 
 ### Scripts
 

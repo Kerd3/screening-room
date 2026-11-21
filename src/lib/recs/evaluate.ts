@@ -12,7 +12,17 @@
  * calls are made and results are reproducible.
  */
 import { buildUserVectors, computeItemSimilarity, scoreForUser, type SimilarityRow } from "./collaborative";
-import { blend, diversify, genreMatch, normalize, weightsFor, type Candidate } from "./hybrid";
+import {
+  blend,
+  DIVERSITY_SHARE,
+  diversify,
+  genreMatch,
+  normalize,
+  WARM_WEIGHTS,
+  weightsFor,
+  type Candidate,
+  type Weights,
+} from "./hybrid";
 import { computeAffinity, type Signal } from "./signals";
 import type { MediaItem } from "@/lib/tmdb/types";
 
@@ -140,8 +150,14 @@ function cfScores(user: UserContext, shared: SharedContext) {
   return scoreForUser(user.liked, shared.similarity);
 }
 
-/** Ranks with the production blend; `diversity` applies the production genre cap. */
-function hybrid(diversity: boolean): Strategy {
+/**
+ * Ranks with the production blend. Defaults to the production weights and
+ * genre cap; the tuner passes alternatives. diversityShare 1 means no cap.
+ */
+export function makeHybrid({
+  warm = WARM_WEIGHTS,
+  diversityShare = DIVERSITY_SHARE,
+}: { warm?: Weights; diversityShare?: number } = {}): Strategy {
   return (user, shared, k) => {
     const cf = cfScores(user, shared);
     const norm = normalize([...cf.values()].map((s) => s.score));
@@ -151,8 +167,8 @@ function hybrid(diversity: boolean): Strategy {
       cf: norm(cf.get(c.titleId)?.score ?? 0),
       content: Math.max(0, genreMatch(c.item.genreIds, user.affinity)),
     }));
-    const ranked = blend(candidates, weightsFor(user.signalCount, cf.size > 0));
-    return (diversity ? diversify(ranked, k) : ranked.slice(0, k)).map((r) => r.item.id);
+    const ranked = blend(candidates, weightsFor(user.signalCount, cf.size > 0, warm));
+    return diversify(ranked, k, diversityShare).map((r) => r.item.id);
   };
 }
 
@@ -175,8 +191,8 @@ export const STRATEGIES: Record<string, Strategy> = {
     const pad = unseen(user, shared).sort(byPopularity).map((c) => c.titleId);
     return [...new Set([...ranked, ...pad])].filter((t) => !user.seen.has(t)).slice(0, k);
   },
-  hybrid: hybrid(false),
-  "hybrid + diversity (production)": hybrid(true),
+  hybrid: makeHybrid({ diversityShare: 1 }),
+  "hybrid + diversity (production)": makeHybrid(),
 };
 
 // ---- harness -------------------------------------------------------------

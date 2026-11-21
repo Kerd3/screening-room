@@ -3,8 +3,9 @@
  *
  *   npm run recs:eval                 print the results table
  *   npm run recs:eval -- --write      also save docs/recommendation-evaluation.md
- *   npm run recs:eval -- --check      exit 1 if the production ranking stops
- *                                     beating the popularity and random baselines (CI)
+ *   npm run recs:eval -- --check      exit 1 if the production ranking stops beating
+ *                                     popularity and random, or falls more than 5%
+ *                                     below the best single strategy (CI)
  *
  * In GitHub Actions the table is also added to the job summary.
  */
@@ -72,6 +73,11 @@ async function main() {
     if (report.usersEvaluated < 10) failures.push(`only ${report.usersEvaluated} users had enough data (need 10)`);
     if (!(prod.recall > pop.recall)) failures.push("production ranking no longer beats popularity on recall@10");
     if (!(prod.recall > rand.recall * 1.5)) failures.push("production ranking is barely better than random");
+    const singles = ["popularity", "content-based", "collaborative"].map(get);
+    const bestSingle = singles.reduce((a, b) => (b.recall > a.recall ? b : a));
+    if (!(prod.recall >= bestSingle.recall * 0.95)) {
+      failures.push(`production ranking fell more than 5% below ${bestSingle.strategy} alone, so blending no longer helps`);
+    }
     if (failures.length) {
       console.error(`Quality check failed:\n- ${failures.join("\n- ")}`);
       process.exitCode = 1;

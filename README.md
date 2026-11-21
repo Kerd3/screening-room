@@ -106,28 +106,49 @@ There is no viewing history. Preference is inferred from what people save, rate 
 2. Each strategy is retrained on what's left and ranks the whole local catalog. The strategies call the same scoring functions the app uses in production.
 3. It counts how many hidden titles land in each strategy's top 10, averaged over 5 random splits.
 
-Results on the seeded data (373 titles, 41 users, 1,405 bookmarks and ratings):
+The seeded sample users are built to behave like real ones. They pick popular titles more often (with a long tail), lean toward a genre "taste profile", and share a few specific favorite titles within each profile. One group just follows what's popular.
+
+Results on that data (373 titles, 101 users, 3,369 bookmarks and ratings):
 
 | Strategy | Precision@10 | Recall@10 | NDCG@10 | Hit rate@10 | Catalog coverage |
 |---|---|---|---|---|---|
-| random | 1.5% | 3.0% | 0.022 | 13.7% | 98.9% |
-| popularity | 1.5% | 3.1% | 0.024 | 13.2% | 3.8% |
-| content-based | 3.8% | 7.3% | 0.058 | 31.2% | 48.0% |
-| collaborative | 3.1% | 6.2% | 0.054 | 28.3% | 55.5% |
-| hybrid | 3.6% | 7.2% | 0.061 | 30.7% | 54.2% |
-| **hybrid + diversity (production)** | **3.7%** | **7.3%** | **0.062** | **31.7%** | **54.7%** |
+| random | 1.3% | 2.7% | 0.019 | 12.7% | 100.0% |
+| popularity | 6.6% | 13.6% | 0.111 | 49.3% | 5.4% |
+| content-based | 4.2% | 8.6% | 0.070 | 35.8% | 55.2% |
+| collaborative | 9.5% | 20.0% | 0.162 | 62.4% | 35.7% |
+| hybrid | 9.6% | 20.1% | 0.165 | 65.9% | 31.9% |
+| **hybrid + diversity (production)** | **9.7%** | **20.2%** | **0.166** | **65.9%** | **32.2%** |
 
 **What it shows:**
-- The production ranking finds **2.3 times** as many hidden titles as recommending popular titles, and has the best NDCG (hits ranked highest) and hit rate.
-- The diversity cap costs no accuracy here.
-- Popularity covers under 4% of the catalog, while the hybrid recommends from more than half of it.
+- **Popularity is a strong baseline**, as it is with real users. The production ranking still finds **1.5 times** as many hidden titles, and covers 6 times as much of the catalog.
+- **Collaborative filtering does most of the work.** It catches the shared favorites that genre matching can't see. The blend adds a little on top, with the best NDCG and hit rate of all six strategies.
+- **Genre matching alone is weak here,** but it still matters for new users, whose recommendations rely mostly on it.
 
-**Caveats:**
-- The sample users were generated from genre "taste profiles", which flatters the genre-based (content) method. Their picks also ignore popularity, which is why popularity scores about the same as random.
-- With only 41 users, collaborative filtering has little co-occurrence data to learn from.
-- Treat the numbers as a regression baseline, not a claim about real-world accuracy.
+**Caveats:** the users are synthetic, so treat the numbers as a regression baseline, not a claim about real-world accuracy.
 
-CI reruns this on a freshly seeded database for every push (the "Recommendation quality" job) and fails if the production ranking stops beating the popularity and random baselines. The latest local run is saved in [docs/recommendation-evaluation.md](docs/recommendation-evaluation.md).
+### Tuning the blend
+
+`npm run recs:tune` grid-searches every collaborative / genre / popularity weighting in steps of 0.05, combined with four genre-cap settings (924 configurations):
+
+1. It ranks every configuration by NDCG@10 on 5 validation splits.
+2. It confirms the winner on 10 separate test splits that played no part in choosing it.
+3. A paired test then recommends switching only if the gain on unseen splits is more than two standard errors above zero.
+
+**Outcome: the hand-picked weights stayed.**
+- The top 127 configurations are all within about 0.005 NDCG of each other, a flat plateau that the current weights already sit on.
+- The validation winner looked 3% better, but on the unseen test splits it was 2% worse, and its catalog coverage fell from 36% to 24%.
+- So the tuner keeps the current weights. Shipping the "best" configuration would have meant tuning to noise.
+
+The full search is in [docs/recommendation-tuning.md](docs/recommendation-tuning.md).
+
+### Guarding quality in CI
+
+CI reruns the evaluation on a freshly seeded database for every push (the "Recommendation quality" job). The build fails if the production ranking:
+- stops beating popularity,
+- is barely better than random, or
+- falls more than 5% below the best single strategy, which would mean blending no longer helps.
+
+The latest local run is saved in [docs/recommendation-evaluation.md](docs/recommendation-evaluation.md).
 
 ## Getting started
 
@@ -155,7 +176,7 @@ Requirements: Node 20 or later.
    npx prisma migrate deploy
    ```
 
-4. Seed the database: about 300 titles and 40 synthetic users, which collaborative filtering needs to have something to learn from.
+4. Seed the database: about 370 titles and 100 synthetic users, which collaborative filtering needs to have something to learn from.
 
    ```bash
    npm run db:seed
@@ -193,6 +214,7 @@ To refresh `dev` with current production data, reset the branch from its parent 
 | `npm run test:e2e` | Playwright browser tests: register and log in, the account menu (desktop and mobile), bookmarking, search on every page, infinite scroll and filters. Starts the dev server if one isn't running. Test users are `e2e.*@example.com` and are deleted afterwards. Set `E2E_DATABASE_URL` to use a separate database, or `E2E_BASE_URL` to test a deployed site |
 | `npm run recs:rebuild` | Recompute every genre profile and the similarity table |
 | `npm run recs:eval` | Offline hold-out evaluation of the recommender against baselines. `-- --write` saves the results to `docs/`, and `-- --check` fails if quality regresses |
+| `npm run recs:tune` | Grid search over the blend weights and genre cap, with validation and test splits and a paired significance check (takes about 5 minutes) |
 | `npm run alerts:check` | Check bookmarked series for new seasons. Production schedulers call `POST /api/cron/check-seasons` with `Authorization: Bearer $CRON_SECRET` |
 | `npm run db:studio` | Browse the database |
 

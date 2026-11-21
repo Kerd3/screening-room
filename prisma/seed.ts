@@ -4,9 +4,10 @@
  *
  *   npm run db:seed
  *
- * With TMDB_READ_TOKEN set: imports about 300 popular titles and creates 40
- * users whose bookmarks and ratings follow genre "taste profiles". Without a
- * token, it creates only the demo login.
+ * With TMDB_READ_TOKEN set: imports about 370 popular titles and creates 100
+ * users whose bookmarks follow popularity, a genre "taste profile" and a few
+ * favorites shared within each profile. Without a token, it creates only the
+ * demo login.
  *
  * Demo login: demo@example.com / screening-demo
  */
@@ -34,7 +35,10 @@ function mulberry32(seed: number) {
 const rand = mulberry32(20261119);
 const pick = <T,>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
 
-/** Taste profiles: canonical genre ids each persona leans toward. */
+/**
+ * Taste profiles: canonical genre ids each persona leans toward. An empty list
+ * is a "mainstream" viewer who simply follows what's popular.
+ */
 const PERSONAS: { name: string; genres: number[] }[] = [
   { name: "space and action", genres: [878, 28, 12] },
   { name: "crime and drama", genres: [80, 18, 53] },
@@ -43,7 +47,12 @@ const PERSONAS: { name: string; genres: number[] }[] = [
   { name: "fantasy and adventure", genres: [14, 12, 16] },
   { name: "romance and drama", genres: [10749, 18, 35] },
   { name: "documentary and history", genres: [99, 36, 10752] },
+  { name: "mainstream", genres: [] },
 ];
+
+const SEED_USERS = 100;
+/** Titles each persona's community shares (a "canon"), beyond broad genre taste. */
+const FAVORITES_PER_PERSONA = 8;
 
 const FIRST = ["Amara", "Lucas", "Mei", "Tomás", "Priya", "Jonah", "Sofia", "Kwame", "Hana", "Mateo", "Leila", "Oskar", "Nadia", "Ravi", "Elena", "Theo", "Yuki", "Marcus", "Ines", "Dev"];
 const LAST = ["Okafor", "Ferreira", "Lin", "Navarro", "Raman", "Becker", "Rossi", "Mensah", "Sato", "Alvarez", "Haddad", "Lund", "Petrova", "Iyer", "Costa", "Walsh", "Mori", "Bell", "Duarte", "Kapoor"];
@@ -90,9 +99,9 @@ async function main() {
   await db.user.deleteMany({ where: { email: { startsWith: "seed." } } });
 
   const users: { id: string; persona: number }[] = [];
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < SEED_USERS; i++) {
     const persona = i % PERSONAS.length;
-    const name = `${FIRST[i % FIRST.length]} ${LAST[(i * 7) % LAST.length]}`;
+    const name = `${FIRST[i % FIRST.length]} ${LAST[(i * 7 + Math.floor(i / FIRST.length)) % LAST.length]}`;
     const u = await db.user.create({
       data: {
         email: `seed.${i}@example.com`,
@@ -104,29 +113,68 @@ async function main() {
     users.push({ id: u.id, persona });
   }
 
-  // Each user bookmarks titles in proportion to how well they fit the persona,
-  // plus a little noise, then rates about a third of what they saved.
+  // How users choose titles, built to look like real behaviour:
+  //  1. Popular titles get picked more often, with a long tail (weight = popularity^0.6).
+  //  2. Each persona's community shares a few specific favorites, so there is
+  //     title-level agreement for collaborative filtering to find, not just genre taste.
+  //  3. Genre fit decides whether a picked title is kept; mainstream viewers keep
+  //     about a third of whatever is popular.
+  // Then about a third of saved titles get a rating that reflects the fit.
+  const weights = catalog.map((c) => Math.max(1, c.popularity) ** 0.6);
+  const cumulative: number[] = [];
+  weights.reduce((sum, w, i) => (cumulative[i] = sum + w), 0);
+  const totalWeight = cumulative[cumulative.length - 1];
+  const pickPopular = () => {
+    const r = rand() * totalWeight;
+    let lo = 0;
+    let hi = cumulative.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cumulative[mid] < r) lo = mid + 1;
+      else hi = mid;
+    }
+    return catalog[lo];
+  };
+
+  const fitFor = (taste: number[]) => (item: MediaItem) =>
+    canonicalGenres(item.genreIds).filter((g) => taste.includes(g)).length;
+  const favorites = PERSONAS.map((p) => {
+    const fit = fitFor(p.genres);
+    const pool = p.genres.length ? catalog.filter((c) => fit(c) > 0) : catalog;
+    const picks = new Set<number>();
+    while (picks.size < Math.min(FAVORITES_PER_PERSONA, pool.length)) picks.add(pick(pool).localId);
+    return picks;
+  });
+
   const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
+  const byId = new Map(catalog.map((c) => [c.localId, c]));
   for (const u of users) {
     const taste = PERSONAS[u.persona].genres;
-    const fit = (item: MediaItem) => canonicalGenres(item.genreIds).filter((g) => taste.includes(g)).length;
-    const target = 15 + Math.floor(rand() * 20);
+    const fit = fitFor(taste);
+    const keepChance = (item: MediaItem) =>
+      taste.length === 0 ? 0.35 : fit(item) > 0 ? 0.3 + 0.2 * fit(item) : 0.04;
+
     const chosen = new Set<number>();
+    for (const id of favorites[u.persona]) if (rand() < 0.45) chosen.add(id);
+    const target = 15 + Math.floor(rand() * 20);
     for (let tries = 0; chosen.size < target && tries < 4000; tries++) {
-      const item = pick(catalog);
-      const p = fit(item) > 0 ? 0.35 + 0.2 * fit(item) : 0.03;
-      if (rand() < p) chosen.add(item.localId);
+      const item = pickPopular();
+      if (rand() < keepChance(item)) chosen.add(item.localId);
     }
-    const byId = new Map(catalog.map((c) => [c.localId, c]));
+
+    const bookmarks: { userId: string; titleId: number; createdAt: Date }[] = [];
+    const ratings: { userId: string; titleId: number; score: number; createdAt: Date; updatedAt: Date }[] = [];
     for (const titleId of chosen) {
       const at = daysAgo(Math.floor(rand() * 90));
-      await db.bookmark.create({ data: { userId: u.id, titleId, createdAt: at } });
+      bookmarks.push({ userId: u.id, titleId, createdAt: at });
       if (rand() < 0.35) {
-        const f = fit(byId.get(titleId)!);
+        const f = taste.length ? fit(byId.get(titleId)!) : 1;
         const score = Math.min(10, Math.max(1, Math.round(5 + f * 1.5 + (rand() * 3 - 1))));
-        await db.rating.create({ data: { userId: u.id, titleId, score, createdAt: at, updatedAt: at } });
+        ratings.push({ userId: u.id, titleId, score, createdAt: at, updatedAt: at });
       }
     }
+    await db.bookmark.createMany({ data: bookmarks });
+    await db.rating.createMany({ data: ratings });
   }
 
   // A few reviews and social connections for the demo account.

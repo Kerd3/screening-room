@@ -23,11 +23,24 @@ export interface Weights {
 /** Fewer than this many saved or rated titles counts as a cold start. */
 export const COLD_START_SIGNALS = 5;
 
-export function weightsFor(signalCount: number, hasCollaborativeData: boolean): Weights {
+/**
+ * Blend for users with enough history. Tuned with `npm run recs:tune` against
+ * the hold-out evaluation; see docs/recommendation-tuning.md for the search.
+ */
+export const WARM_WEIGHTS: Weights = { cf: 0.5, content: 0.35, popularity: 0.15 };
+
+/** Highest share of a shelf one primary genre may fill (1 = no cap). */
+export const DIVERSITY_SHARE = 0.4;
+
+export function weightsFor(
+  signalCount: number,
+  hasCollaborativeData: boolean,
+  warm: Weights = WARM_WEIGHTS,
+): Weights {
   if (signalCount < COLD_START_SIGNALS || !hasCollaborativeData) {
     return { cf: hasCollaborativeData ? 0.15 : 0, content: 0.7, popularity: 0.15 };
   }
-  return { cf: 0.5, content: 0.35, popularity: 0.15 };
+  return warm;
 }
 
 export function normalize(values: number[]): (v: number) => number {
@@ -63,7 +76,8 @@ export function blend(candidates: Candidate[], w: Weights): Ranked[] {
  * Greedy diversification: walk the ranked list and skip a title once its
  * primary genre already fills `maxShare` of the slots.
  */
-export function diversify(ranked: Ranked[], limit: number, maxShare = 0.4): Ranked[] {
+export function diversify(ranked: Ranked[], limit: number, maxShare = DIVERSITY_SHARE): Ranked[] {
+  if (maxShare >= 1) return ranked.slice(0, limit);
   const cap = Math.max(1, Math.floor(limit * maxShare));
   const counts = new Map<number, number>();
   const picked: Ranked[] = [];

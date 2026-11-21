@@ -56,14 +56,18 @@ export function useToggleBookmark() {
 
   return useMutation({
     mutationFn: async ({ item, bookmarked }: { item: MediaItem; bookmarked: boolean }) => {
+      // keepalive: the change still reaches the server if the user reloads or
+      // leaves right after clicking (the UI has already updated optimistically).
       if (bookmarked) {
         await fetchJson(`/api/bookmarks?type=${item.mediaType}&tmdbId=${item.id}`, {
           method: "DELETE",
+          keepalive: true,
         });
       } else {
         await fetchJson("/api/bookmarks", {
           method: "POST",
           body: JSON.stringify({ type: item.mediaType, tmdbId: item.id }),
+          keepalive: true,
         });
       }
     },

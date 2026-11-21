@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { handle } from "@/lib/api";
+import { clientKey, enforce, handle } from "@/lib/api";
 import { requireUserId } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { limiters } from "@/lib/ratelimit-inbound";
 
 const body = z.object({
   bookmarksPublic: z.boolean().optional(),
@@ -17,6 +18,7 @@ export const GET = handle(async () => {
 
 export const PATCH = handle(async (req: Request) => {
   const userId = await requireUserId();
+  await enforce(limiters.write, clientKey(req, userId));
   const data = body.parse(await req.json());
   const pref = await db.userPreference.upsert({
     where: { userId },

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { Bookmark, LogOut, Users } from "lucide-react";
+import { Bookmark, LogOut, Settings, Users } from "lucide-react";
 
 /**
  * The avatar opens this menu instead of signing out directly, so a stray
@@ -115,6 +115,10 @@ export function AccountMenu({
           <Link role="menuitem" href="/friends" onClick={() => close()} className={item}>
             <Users className="size-4 text-usher" aria-hidden />
             Friends and shares
+          </Link>
+          <Link role="menuitem" href="/settings" onClick={() => close()} className={item}>
+            <Settings className="size-4 text-usher" aria-hidden />
+            Settings
           </Link>
           <div role="separator" className="my-1 h-px bg-line" />
           <button role="menuitem" type="button" onClick={signOut} disabled={signingOut} className={`${item} disabled:opacity-60`}>

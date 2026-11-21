@@ -13,12 +13,17 @@ import { topGenres } from "./signals";
 const key = (i: { mediaType: string; id: number }) => `${i.mediaType}:${i.id}`;
 
 export async function getRecommendations(userId: string, limit = 20) {
-  const [bookmarks, ratings] = await Promise.all([
+  const [bookmarks, ratings, pref] = await Promise.all([
     db.bookmark.findMany({ where: { userId }, include: { title: true }, orderBy: { createdAt: "desc" } }),
     db.rating.findMany({ where: { userId }, include: { title: true }, orderBy: { updatedAt: "desc" } }),
+    db.userPreference.findUnique({ where: { userId }, select: { preferredMediaType: true } }),
   ]);
   const signalCount = bookmarks.length + ratings.length;
   if (signalCount === 0) return { items: [], reasons: {}, strategy: "popular" as const };
+
+  // "Show me" in Settings: movies, series, or both.
+  const onlyType: MediaType | null =
+    pref?.preferredMediaType === "movie" || pref?.preferredMediaType === "tv" ? pref.preferredMediaType : null;
 
   // Everything already saved or rated is excluded (rated means watched).
   const seen = new Set([...bookmarks, ...ratings].map((r) => key(titleToMediaItem(r.title))));
@@ -27,7 +32,7 @@ export async function getRecommendations(userId: string, limit = 20) {
   const candidates = new Map<string, Candidate>();
   const upsert = (item: MediaItem, patch: Partial<Candidate>) => {
     const k = key(item);
-    if (seen.has(k)) return;
+    if (seen.has(k) || (onlyType && item.mediaType !== onlyType)) return;
     const c = candidates.get(k) ?? { key: k, item, cf: 0, content: 0 };
     candidates.set(k, { ...c, ...patch, cf: Math.max(c.cf, patch.cf ?? 0), content: Math.max(c.content, patch.content ?? 0) });
   };
@@ -79,7 +84,7 @@ export async function getRecommendations(userId: string, limit = 20) {
 
   if (top.length) {
     const discovered = await Promise.all(
-      (["movie", "tv"] as const).map((type) =>
+      (onlyType ? [onlyType] : (["movie", "tv"] as const)).map((type) =>
         tmdb
           .get<TmdbPaged>(`/discover/${type}`, { with_genres: top.join("|"), sort_by: "popularity.desc", "vote_count.gte": 200 })
           .then((raw) => toPaged(raw, type).results)

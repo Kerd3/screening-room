@@ -23,7 +23,7 @@ export async function bookmark(page: Page, type: "movie" | "tv", tmdbId: number)
 
 export async function me(page: Page) {
   const res = await page.request.get("/api/me");
-  return (await res.json()) as { user: { name: string; email: string } | null };
+  return (await res.json()) as { user: { id: string; name: string; email: string } | null };
 }
 
 export const cards = (page: Page) => page.locator("main article");

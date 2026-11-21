@@ -37,8 +37,12 @@ test("bookmarks a movie from the grid, sees it saved, then removes it", async ({
   await page.reload();
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
 
+  const removing = page.waitForResponse(
+    (r) => r.url().includes("/api/bookmarks") && r.request().method() === "DELETE",
+  );
   await page.getByRole("button", { name: `Remove ${title} from bookmarks` }).click();
-  await expect(page.getByRole("heading", { name: "Nothing bookmarked yet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nothing bookmarked yet" })).toBeVisible(); // optimistic
+  expect((await removing).status()).toBe(200); // confirmed by the server before reloading
   await page.reload();
   await expect(page.getByRole("heading", { name: "Nothing bookmarked yet" })).toBeVisible();
 });

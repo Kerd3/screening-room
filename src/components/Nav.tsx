@@ -24,7 +24,7 @@ export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
-  const { data: me } = useMe();
+  const { data: me, isPending: meLoading } = useMe();
   const user = me?.user;
   const socialCount = (me?.unseenShares ?? 0) + (me?.pendingFriends ?? 0);
 
@@ -73,7 +73,10 @@ export function Nav() {
       </ul>
 
       <div className="flex items-center sm:ml-2 sm:gap-1 lg:mt-auto lg:ml-0 lg:flex-col lg:gap-2">
-        {user ? (
+        {meLoading ? (
+          // Neutral placeholder while the session loads, so signed-in users never see "Log in" flash.
+          <span aria-hidden className="size-11 rounded-full bg-stall motion-safe:animate-pulse" />
+        ) : user ? (
           <>
             <IconLink href="/friends" label="Friends and shares" icon={Users} count={socialCount} />
             <IconLink href="/alerts" label="New season alerts" icon={Bell} count={me?.unreadAlerts ?? 0} />

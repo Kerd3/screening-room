@@ -6,7 +6,7 @@ import { limiters } from "@/lib/ratelimit-inbound";
 const params = z.object({ type: mediaTypeSchema, id: z.coerce.number().int().positive() });
 
 export const GET = handle(async (req: Request, ctx: RouteContext<"/api/titles/[type]/[id]">) => {
-  enforce(limiters.browse, clientKey(req));
+  await enforce(limiters.browse, clientKey(req));
   const { type, id } = params.parse(await ctx.params);
   const [detail, similar] = await Promise.all([
     getDetail(type, id),

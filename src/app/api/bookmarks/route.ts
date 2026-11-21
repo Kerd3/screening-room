@@ -23,7 +23,7 @@ export const GET = handle(async () => {
 
 export const POST = handle(async (req: Request) => {
   const userId = await requireUserId();
-  enforce(limiters.write, clientKey(req, userId));
+  await enforce(limiters.write, clientKey(req, userId));
   const { type, tmdbId } = ref.parse(await req.json());
   const title = await ensureTitle(type, tmdbId);
 
@@ -38,7 +38,7 @@ export const POST = handle(async (req: Request) => {
 
 export const DELETE = handle(async (req: Request) => {
   const userId = await requireUserId();
-  enforce(limiters.write, clientKey(req, userId));
+  await enforce(limiters.write, clientKey(req, userId));
   const { type, tmdbId } = ref.parse(queryOf(req));
   const title = await db.title.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType: type } },

@@ -49,7 +49,7 @@ export const GET = handle(async (req: Request) => {
 
 export const PUT = handle(async (req: Request) => {
   const userId = await requireUserId();
-  enforce(limiters.write, clientKey(req, userId));
+  await enforce(limiters.write, clientKey(req, userId));
   const { type, tmdbId, score, review } = body.parse(await req.json());
   const title = await ensureTitle(type, tmdbId);
   await db.rating.upsert({

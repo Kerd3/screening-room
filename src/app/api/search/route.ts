@@ -13,7 +13,7 @@ const query = z.object({
 
 export const GET = handle(async (req: Request) => {
   const userId = await getUserId();
-  enforce(limiters.search, clientKey(req, userId ?? undefined));
+  await enforce(limiters.search, clientKey(req, userId ?? undefined));
   const { q, type, page } = query.parse(queryOf(req));
   const results = await search(q, type, page);
 

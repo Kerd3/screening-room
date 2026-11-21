@@ -20,7 +20,15 @@ interface Stats {
     persistentEntries: number;
     persistentFresh: number;
   };
-  rateLimit: { maxPerSecond: number; queued: number; rateLimited429: number; retries: number };
+  rateLimit: {
+    maxPerSecond: number;
+    queued: number;
+    rateLimited429: number;
+    retries: number;
+    backend: "redis" | "memory";
+    globalWaits: number;
+    globalFailOpen: number;
+  };
 }
 
 export function StatsView() {
@@ -67,7 +75,12 @@ export function StatsView() {
             <dl className="mt-6 divide-y divide-line">
               <Stat label="Upstream calls to TMDB" value={s.cache.upstreamCalls} />
               <Stat label="Upstream errors" value={s.cache.upstreamErrors} />
+              <Stat
+                label="Where limits are counted"
+                value={s.rateLimit.backend === "redis" ? "Redis, shared by all servers" : "Memory, per server"}
+              />
               <Stat label="Token bucket limit" value={`${s.rateLimit.maxPerSecond} per second`} />
+              <Stat label="Waits for the shared TMDB bucket" value={s.rateLimit.globalWaits} />
               <Stat label="Requests waiting for a token" value={s.rateLimit.queued} />
               <Stat label="429 responses from TMDB" value={s.rateLimit.rateLimited429} />
               <Stat label="Retries after backoff" value={s.rateLimit.retries} />

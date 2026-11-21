@@ -1,7 +1,8 @@
 import { connection } from "next/server";
 import { handle } from "@/lib/api";
 import { db } from "@/lib/db";
-import { tmdb } from "@/lib/tmdb";
+import { rateLimitBackend } from "@/lib/ratelimit-inbound";
+import { tmdb, tmdbGlobalGate } from "@/lib/tmdb";
 
 /** Cache and rate-limit counters for this server process (shown on /stats). */
 export const GET = handle(async () => {
@@ -28,6 +29,10 @@ export const GET = handle(async () => {
       maxPerSecond: Number(process.env.TMDB_MAX_RPS ?? 35),
       queued: tmdb.limiter.pending,
       ...tmdb.runtime,
+      /** "redis": limits are shared by every instance; "memory": per instance. */
+      backend: rateLimitBackend(),
+      globalWaits: tmdbGlobalGate.stats.waits,
+      globalFailOpen: tmdbGlobalGate.stats.failOpen,
     },
   });
 });

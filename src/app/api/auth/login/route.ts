@@ -11,7 +11,7 @@ const body = z.object({
 });
 
 export const POST = handle(async (req: Request) => {
-  enforce(limiters.write, clientKey(req));
+  await enforce(limiters.write, clientKey(req));
   const { email, password } = body.parse(await req.json());
 
   const user = await db.user.findUnique({ where: { email } });

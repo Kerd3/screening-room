@@ -78,5 +78,6 @@ test("a bookmark shows as saved everywhere the title appears", async ({ page }) 
   await bookmark(page, "movie", INCEPTION);
   await page.goto(`/title/movie/${INCEPTION}`);
   await expect(page.getByRole("heading", { level: 1, name: "Inception" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Bookmarked" })).toHaveAttribute("aria-pressed", "true");
+  // exact: the "Bookmarked together" shelf has scroll buttons whose names also contain "Bookmarked".
+  await expect(page.getByRole("button", { name: "Bookmarked", exact: true })).toHaveAttribute("aria-pressed", "true");
 });

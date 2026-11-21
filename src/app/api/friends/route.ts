@@ -32,7 +32,7 @@ export const GET = handle(async () => {
 /** Send a friend request by email. If they already asked you, it's accepted. */
 export const POST = handle(async (req: Request) => {
   const userId = await requireUserId();
-  enforce(limiters.write, clientKey(req, userId));
+  await enforce(limiters.write, clientKey(req, userId));
   const { email } = z.object({ email: z.email("Enter a valid email address.") }).parse(await req.json());
 
   const other = await db.user.findUnique({ where: { email: email.toLowerCase() } });

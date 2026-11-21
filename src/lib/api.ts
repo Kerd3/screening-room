@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_rethrow } from "next/navigation";
 import { z, ZodError } from "zod";
 import type { TmdbConfigError, TmdbError } from "@/lib/tmdb";
-import type { SlidingWindowLimiter } from "@/lib/ratelimit-inbound";
+import type { Limiter } from "@/lib/ratelimit-inbound";
 
 export class HttpError extends Error {
   constructor(
@@ -62,8 +62,8 @@ export function clientKey(req: Request, userId?: string) {
   return `ip:${fwd || req.headers.get("x-real-ip") || "local"}`;
 }
 
-export function enforce(limiter: SlidingWindowLimiter, key: string) {
-  const r = limiter.check(key);
+export async function enforce(limiter: Limiter, key: string) {
+  const r = await limiter.check(key);
   if (!r.ok) {
     throw new HttpError(429, "Too many requests. Wait a moment and try again.", {
       "Retry-After": String(r.retryAfterSec),

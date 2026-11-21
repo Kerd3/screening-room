@@ -29,7 +29,7 @@ export const GET = handle(async () => {
 
 export const POST = handle(async (req: Request) => {
   const userId = await requireUserId();
-  enforce(limiters.write, clientKey(req, userId));
+  await enforce(limiters.write, clientKey(req, userId));
   const { toUserId, type, tmdbId, note } = z
     .object({
       toUserId: z.string().min(1),

@@ -18,7 +18,7 @@ const query = z.object({
 });
 
 export const GET = handle(async (req: Request) => {
-  enforce(limiters.browse, clientKey(req));
+  await enforce(limiters.browse, clientKey(req));
   const q = query.parse(queryOf(req));
   return Response.json(await browse(q));
 });

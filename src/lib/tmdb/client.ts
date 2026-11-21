@@ -39,6 +39,8 @@ interface TmdbClientDeps {
   token: () => string | undefined;
   cache: TieredCache;
   limiter: TokenBucket;
+  /** Optional cross-instance limit (Redis); checked before the local bucket. */
+  globalGate?: { acquire(): Promise<void> };
   fetchImpl?: typeof fetch;
 }
 
@@ -57,6 +59,7 @@ export function createTmdbClient(deps: TmdbClientDeps) {
 
     return withRetry(
       async () => {
+        await deps.globalGate?.acquire();
         await deps.limiter.acquire();
         let res: Response;
         try {

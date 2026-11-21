@@ -143,6 +143,7 @@ Requirements: Node 20 or later.
 | Script | What it does |
 |---|---|
 | `npm test` | Unit tests: rate limiter, cache, TMDB client (MSW), recommendation math, alert diffing |
+| `npm run test:e2e` | Playwright browser tests: register and log in, the account menu (desktop and mobile), bookmarking, search on every page, infinite scroll and filters. Starts the dev server if one isn't running. Test users are `e2e.*@example.com` and are deleted afterwards. Set `E2E_DATABASE_URL` to use a separate database, or `E2E_BASE_URL` to test a deployed site |
 | `npm run recs:rebuild` | Recompute every genre profile and the similarity table |
 | `npm run alerts:check` | Check bookmarked series for new seasons. Production schedulers call `POST /api/cron/check-seasons` with `Authorization: Bearer $CRON_SECRET` |
 | `npm run db:studio` | Browse the database |

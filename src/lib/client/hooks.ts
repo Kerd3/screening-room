@@ -12,10 +12,12 @@ export interface Me {
   pendingFriends?: number;
 }
 
+const fetchMe = () => fetchJson<Me>("/api/me");
+
 export function useMe() {
   return useQuery({
     queryKey: ["me"],
-    queryFn: () => fetchJson<Me>("/api/me"),
+    queryFn: fetchMe,
     staleTime: 30_000,
   });
 }
@@ -66,8 +68,10 @@ export function useToggleBookmark() {
       }
     },
     onMutate: async ({ item, bookmarked }) => {
-      const me = qc.getQueryData<Me>(["me"]);
-      if (!me?.user) {
+      // Wait for the session check if it's still loading; reading only the cache
+      // would treat a signed-in user who clicks early as signed out.
+      const me = await qc.ensureQueryData({ queryKey: ["me"], queryFn: fetchMe });
+      if (!me.user) {
         router.push(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
         throw new Error("signed-out");
       }

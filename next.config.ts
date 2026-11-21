@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  // The default bottom-left badge covers the nav rail's account button in dev.
+  devIndicators: { position: "bottom-right" },
   images: {
     // TMDB already serves pre-sized images from its CDN, so a custom loader
     // maps each requested width to the nearest TMDB size bucket instead of

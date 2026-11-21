@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell, Bookmark, Film, House, LogIn, Tv, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { AccountMenu } from "./AccountMenu";
 import { useMe } from "@/lib/client/hooks";
 import { fetchJson } from "@/lib/client/fetcher";
 
@@ -76,15 +77,7 @@ export function Nav() {
           <>
             <IconLink href="/friends" label="Friends and shares" icon={Users} count={socialCount} />
             <IconLink href="/alerts" label="New season alerts" icon={Bell} count={me?.unreadAlerts ?? 0} />
-            <button
-              onClick={signOut}
-              title={`Sign out ${user.name}`}
-              className="flex size-11 items-center justify-center rounded-full bg-stall text-[15px] font-semibold text-paper
-                         transition-colors duration-150 hover:bg-stall-raised"
-            >
-              <span aria-hidden>{user.name.slice(0, 1).toUpperCase()}</span>
-              <span className="sr-only">Sign out {user.name}</span>
-            </button>
+            <AccountMenu user={user} onSignOut={signOut} />
           </>
         ) : (
           <Link

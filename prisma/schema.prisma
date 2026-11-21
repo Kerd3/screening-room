@@ -1,0 +1,220 @@
+// Prisma 7 + PostgreSQL (Neon, through the pg driver adapter).
+// Lists are stored as JSON-encoded strings and enum-like fields as strings,
+// which kept the move from SQLite to PostgreSQL free of model changes.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  /// Last time season alerts were checked for this user's bookmarks.
+  alertsCheckedAt DateTime?
+
+  preference     UserPreference?
+  bookmarks      Bookmark[]
+  ratings        Rating[]
+  searches       SearchHistory[]
+  genreAffinity  GenreAffinity[]
+  alerts         Alert[]
+  sentRequests   Friendship[]    @relation("requester")
+  receivedReqs   Friendship[]    @relation("addressee")
+  sharesSent     Share[]         @relation("shareFrom")
+  sharesReceived Share[]         @relation("shareTo")
+}
+
+model UserPreference {
+  userId             String  @id
+  /// "all" | "movie" | "tv"
+  preferredMediaType String  @default("all")
+  bookmarksPublic    Boolean @default(true)
+  alertsEnabled      Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Local snapshot of TMDB metadata so bookmarks and recommendations can be
+/// queried without calling TMDB.
+model Title {
+  id              Int       @id @default(autoincrement())
+  tmdbId          Int
+  /// "movie" | "tv"
+  mediaType       String
+  title           String
+  overview        String    @default("")
+  posterPath      String?
+  backdropPath    String?
+  releaseDate     String?
+  /// JSON array of TMDB genre ids, e.g. "[28,12]"
+  genreIds        String    @default("[]")
+  voteAverage     Float     @default(0)
+  popularity      Float     @default(0)
+  numberOfSeasons Int?
+  lastAirDate     String?
+  status          String?
+  updatedAt       DateTime  @updatedAt
+
+  bookmarks    Bookmark[]
+  ratings      Rating[]
+  alerts       Alert[]
+  shares       Share[]
+  tvSnapshot   TvSnapshot?
+  similarFrom  ItemSimilarity[] @relation("simA")
+  similarTo    ItemSimilarity[] @relation("simB")
+  searchClicks SearchHistory[]
+
+  @@unique([tmdbId, mediaType])
+  @@index([mediaType, popularity])
+}
+
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  titleId   Int
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, titleId])
+  @@index([userId, createdAt])
+  @@index([titleId])
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  titleId   Int
+  /// 1-10
+  score     Int
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, titleId])
+  @@index([titleId])
+}
+
+model SearchHistory {
+  id             Int      @id @default(autoincrement())
+  userId         String
+  query          String
+  /// "all" | "movie" | "tv" | "bookmarks"
+  mediaFilter    String
+  resultCount    Int
+  clickedTitleId Int?
+  createdAt      DateTime @default(now())
+
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clickedTitle Title? @relation(fields: [clickedTitleId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+/// Derived preference profile: decayed signal strength per genre.
+model GenreAffinity {
+  userId    String
+  genreId   Int
+  score     Float
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, genreId])
+}
+
+model Friendship {
+  id          Int      @id @default(autoincrement())
+  requesterId String
+  addresseeId String
+  /// "PENDING" | "ACCEPTED" | "DECLINED"
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  requester User @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+}
+
+model Share {
+  id         Int       @id @default(autoincrement())
+  fromUserId String
+  toUserId   String
+  titleId    Int
+  note       String?
+  createdAt  DateTime  @default(now())
+  seenAt     DateTime?
+
+  from  User  @relation("shareFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to    User  @relation("shareTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId, createdAt])
+}
+
+model Alert {
+  id        Int       @id @default(autoincrement())
+  userId    String
+  titleId   Int
+  /// "NEW_SEASON" | "NEW_EPISODE_DATE"
+  kind      String
+  message   String
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+/// Last known airing state of a bookmarked series, compared on each check.
+model TvSnapshot {
+  titleId         Int      @id
+  seasonCount     Int
+  lastAirDate     String?
+  nextEpisodeDate String?
+  checkedAt       DateTime @default(now())
+
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+}
+
+/// Item-item collaborative filtering output (cosine over implicit signals).
+/// Stored once per unordered pair with titleAId < titleBId.
+model ItemSimilarity {
+  titleAId   Int
+  titleBId   Int
+  score      Float
+  coCount    Int
+  computedAt DateTime @default(now())
+
+  titleA Title @relation("simA", fields: [titleAId], references: [id], onDelete: Cascade)
+  titleB Title @relation("simB", fields: [titleBId], references: [id], onDelete: Cascade)
+
+  @@id([titleAId, titleBId])
+  @@index([titleBId])
+}
+
+/// Persistent (tier 2) cache for TMDB responses, shared by every serverless instance.
+model ApiCache {
+  key       String   @id
+  body      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

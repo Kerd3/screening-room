@@ -6,21 +6,55 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "recs:rebuild": "tsx --conditions=react-server scripts/rebuild-recs.ts",
+    "alerts:check": "tsx --conditions=react-server scripts/check-seasons.ts",
+    "format": "prettier --write .",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma migrate deploy && next build",
+    "db:migrate:dev": "prisma migrate dev"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "@tanstack/react-query": "^5.108.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.10",
+    "iron-session": "^9.1.0",
+    "lru-cache": "^11.5.3",
+    "lucide-react": "^1.75.0",
     "next": "16.4.6",
+    "pg": "^8.23.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "msw": "^3.0.7",
+    "prettier": "^3.10.1",
+    "prisma": "^7.10.1",
     "tailwindcss": "4.3.3",
-    "typescript": "^5"
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.1.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true,
+    "better-sqlite3@12.11.1": true
   }
 }

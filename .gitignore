@@ -39,3 +39,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+!.env.example
+
+# local database
+/prisma/*.db
+/prisma/*.db-journal
+/src/generated/
+
+# Prisma's local agent skills (installed by prisma init)
+/.agents/
+/.claude/
+/.windsurf/
+/skills-lock.json
+
+# Vercel
+.vercel

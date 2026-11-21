@@ -38,7 +38,7 @@ An entertainment web app for browsing movies and TV series, bookmarking what you
 
 **Stack:** Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS 4, Prisma 7 with Neon Postgres, iron-session, TanStack Query, Zod, Vitest and MSW. Deployed on Vercel.
 
-**On serverless:** the in-memory cache tier and the inbound rate limiter are per instance, so they're best-effort; the Postgres cache tier is shared. Work that should outlive a response (rebuilding similarity, background season checks) runs in `after()`.
+**On serverless:** rate limits are kept in Upstash Redis and the second cache tier in Postgres, so both are shared by every instance. Only the first, in-memory cache tier is per instance. Work that should outlive a response (rebuilding similarity, background season checks) runs in `after()`.
 
 ## Working with a rate-limited API
 
@@ -60,15 +60,22 @@ All TMDB traffic goes through one function, `tmdb.get()` in `src/lib/tmdb/client
 - **Request coalescing.** Ten simultaneous requests for the same key make one upstream call.
 - **Serve-stale-on-error.** If TMDB is down or answers 429, any stored copy, however old, is served instead of failing.
 
-**Outbound limiting** (`rateLimiter.ts`):
-- A token bucket (default 35 requests per second, `TMDB_MAX_RPS`) queues requests rather than dropping them.
-- A 429 pauses the whole bucket for `Retry-After`.
-- Failed calls retry with exponential backoff plus jitter (3 tries). A 404 is not retried.
+**Outbound limiting** (`rateLimiter.ts`, `globalGate.ts`):
+- **Shared bucket.** Every TMDB call first takes a token from a token bucket in Upstash Redis (default 35 per second, `TMDB_MAX_RPS`), which all serverless instances share. Together they can't exceed TMDB's limit.
+- **Local bucket.** Each instance also keeps its own token bucket, which queues requests rather than dropping them.
+- **On a 429:** the whole bucket pauses for `Retry-After`.
+- **Retries:** failed calls retry with exponential backoff plus jitter (3 tries). A 404 is not retried.
 
 **Inbound limiting** (`ratelimit-inbound.ts`):
-- Sliding windows per user or IP: search 30 per minute, browsing 120, writes 60.
-- Over the limit, the API returns 429 with `Retry-After`.
-- This keeps one client from draining the shared TMDB quota.
+- Sliding windows per signed-in user or IP: search 30 per minute, browsing 120, writes 60.
+- Counted in Upstash Redis, so the limit holds however many instances Vercel runs.
+- Over the limit, the API returns 429 with `Retry-After`. This keeps one client from draining the shared TMDB quota.
+
+**Failing safe.** Without Redis (local development, CI), on a Redis error, or when Redis takes longer than a second, both layers fall back to per-instance limits. A Redis problem makes limits less exact but never takes the site down. `/stats` shows which mode is active.
+
+**Verified:**
+- Two separate servers sharing one Redis each let through only 14 searches from the same client before both refused, because their combined count hit the shared limit.
+- On the live site, 32 searches in a row gave 30 allowed and the 31st refused.
 
 **Image loading.** A custom `next/image` loader maps requested widths onto TMDB's CDN size buckets (w185 to w1280), so images aren't optimized twice.
 
@@ -177,6 +184,7 @@ Requirements: Node 20 or later.
    - **`TMDB_READ_TOKEN`**: free from themoviedb.org → Settings → API → *API Read Access Token*.
    - **`SESSION_PASSWORD`**: any random string of 32 or more characters.
    - **`CRON_SECRET`**: any random string.
+   - **`KV_REST_API_URL`** and **`KV_REST_API_TOKEN`** (optional): an Upstash Redis database that shares rate limits across servers. On Vercel, add one under Storage → Upstash. Without them, limits are counted per server.
 
    ```bash
    cp .env.example .env

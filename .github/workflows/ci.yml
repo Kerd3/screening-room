@@ -28,6 +28,42 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  recs-quality:
+    name: Recommendation quality
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Seeds a throwaway Postgres with the deterministic sample users, then runs
+    # the hold-out evaluation. Fails if the production ranking stops beating the
+    # popularity and random baselines. Results appear in the job summary.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: screening_room
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/screening_room
+      DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/screening_room
+      TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run db:seed
+      - run: npm run recs:eval -- --check
+
   e2e:
     name: Playwright end-to-end tests
     needs: checks

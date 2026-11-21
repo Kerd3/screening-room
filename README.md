@@ -98,6 +98,37 @@ There is no viewing history. Preference is inferred from what people save, rate 
    - A greedy diversity pass keeps any one genre to 40% of the shelf.
    - Every pick carries the reason from whichever component contributed most.
 
+### Measuring recommendation quality
+
+`npm run recs:eval` runs an offline hold-out test (`src/lib/recs/evaluate.ts`):
+
+1. For every user with at least 5 liked titles (bookmarked, or rated 6 or higher), it hides a random 20%. Every interaction with a hidden title is removed from training, so nothing leaks.
+2. Each strategy is retrained on what's left and ranks the whole local catalog. The strategies call the same scoring functions the app uses in production.
+3. It counts how many hidden titles land in each strategy's top 10, averaged over 5 random splits.
+
+Results on the seeded data (373 titles, 41 users, 1,405 bookmarks and ratings):
+
+| Strategy | Precision@10 | Recall@10 | NDCG@10 | Hit rate@10 | Catalog coverage |
+|---|---|---|---|---|---|
+| random | 1.5% | 3.0% | 0.022 | 13.7% | 98.9% |
+| popularity | 1.5% | 3.1% | 0.024 | 13.2% | 3.8% |
+| content-based | 3.8% | 7.3% | 0.058 | 31.2% | 48.0% |
+| collaborative | 3.1% | 6.2% | 0.054 | 28.3% | 55.5% |
+| hybrid | 3.6% | 7.2% | 0.061 | 30.7% | 54.2% |
+| **hybrid + diversity (production)** | **3.7%** | **7.3%** | **0.062** | **31.7%** | **54.7%** |
+
+**What it shows:**
+- The production ranking finds **2.3 times** as many hidden titles as recommending popular titles, and has the best NDCG (hits ranked highest) and hit rate.
+- The diversity cap costs no accuracy here.
+- Popularity covers under 4% of the catalog, while the hybrid recommends from more than half of it.
+
+**Caveats:**
+- The sample users were generated from genre "taste profiles", which flatters the genre-based (content) method. Their picks also ignore popularity, which is why popularity scores about the same as random.
+- With only 41 users, collaborative filtering has little co-occurrence data to learn from.
+- Treat the numbers as a regression baseline, not a claim about real-world accuracy.
+
+CI reruns this on a freshly seeded database for every push (the "Recommendation quality" job) and fails if the production ranking stops beating the popularity and random baselines. The latest local run is saved in [docs/recommendation-evaluation.md](docs/recommendation-evaluation.md).
+
 ## Getting started
 
 Requirements: Node 20 or later.
@@ -161,6 +192,7 @@ To refresh `dev` with current production data, reset the branch from its parent 
 | `npm test` | Unit tests: rate limiter, cache, TMDB client (MSW), recommendation math, alert diffing |
 | `npm run test:e2e` | Playwright browser tests: register and log in, the account menu (desktop and mobile), bookmarking, search on every page, infinite scroll and filters. Starts the dev server if one isn't running. Test users are `e2e.*@example.com` and are deleted afterwards. Set `E2E_DATABASE_URL` to use a separate database, or `E2E_BASE_URL` to test a deployed site |
 | `npm run recs:rebuild` | Recompute every genre profile and the similarity table |
+| `npm run recs:eval` | Offline hold-out evaluation of the recommender against baselines. `-- --write` saves the results to `docs/`, and `-- --check` fails if quality regresses |
 | `npm run alerts:check` | Check bookmarked series for new seasons. Production schedulers call `POST /api/cron/check-seasons` with `Authorization: Bearer $CRON_SECRET` |
 | `npm run db:studio` | Browse the database |
 

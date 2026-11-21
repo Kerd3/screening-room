@@ -2,15 +2,18 @@ import "server-only";
 import { getSimilar, titleToMediaItem } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { tmdb } from "@/lib/tmdb";
-import { genreName } from "@/lib/tmdb/genres";
+import { canonicalGenres, genreName } from "@/lib/tmdb/genres";
 import { toPaged } from "@/lib/tmdb/normalize";
 import type { MediaItem, MediaType, TmdbPaged } from "@/lib/tmdb/types";
 import { scoreForUser } from "./collaborative";
-import { blend, diversify, genreMatch, normalize, weightsFor, type Candidate } from "./hybrid";
+import { blend, diversify, genreMatch, normalize, varyReasons, weightsFor, type Candidate } from "./hybrid";
 import { rebuildAffinity } from "./profile";
 import { topGenres } from "./signals";
 
 const key = (i: { mediaType: string; id: number }) => `${i.mediaType}:${i.id}`;
+
+/** TMDB average below which a title isn't recommended (0 = unrated, allowed). */
+export const MIN_RECOMMENDED_RATING = 5.5;
 
 export async function getRecommendations(userId: string, limit = 20) {
   const [bookmarks, ratings, pref] = await Promise.all([
@@ -33,6 +36,9 @@ export async function getRecommendations(userId: string, limit = 20) {
   const upsert = (item: MediaItem, patch: Partial<Candidate>) => {
     const k = key(item);
     if (seen.has(k) || (onlyType && item.mediaType !== onlyType)) return;
+    // Quality floor: don't recommend titles audiences rated poorly. Unrated
+    // (rating 0, usually brand-new) titles are allowed through.
+    if (item.rating > 0 && item.rating < MIN_RECOMMENDED_RATING) return;
     const c = candidates.get(k) ?? { key: k, item, cf: 0, content: 0 };
     candidates.set(k, { ...c, ...patch, cf: Math.max(c.cf, patch.cf ?? 0), content: Math.max(c.content, patch.content ?? 0) });
   };
@@ -98,7 +104,20 @@ export async function getRecommendations(userId: string, limit = 20) {
   }
 
   const weights = weightsFor(signalCount, cfScores.size > 0);
-  const ranked = diversify(blend([...candidates.values()], weights), limit);
+  const diversified = diversify(blend([...candidates.values()], weights), limit);
+
+  // Vary the labels: a pick whose reason is already used twice shows its other
+  // true reason, or the user's strongest genre it matches.
+  const ranked = varyReasons(diversified, (r) => {
+    const c = candidates.get(key(r.item));
+    const other = r.reason === c?.cfReason ? c?.contentReason : c?.cfReason;
+    if (other) return other;
+    const genre = canonicalGenres(r.item.genreIds)
+      .filter((g) => (affinity.get(g) ?? 0) > 0)
+      .sort((a, b) => (affinity.get(b) ?? 0) - (affinity.get(a) ?? 0))[0];
+    const name = genre !== undefined ? genreName(genre) : undefined;
+    return name ? `You like ${name}` : undefined;
+  });
   return {
     items: ranked.map((r) => r.item),
     reasons: Object.fromEntries(ranked.map((r) => [key(r.item), r.reason])),

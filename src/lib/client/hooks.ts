@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import type { MediaItem, MediaType } from "@/lib/tmdb/types";
 import { fetchJson } from "./fetcher";
+import { useHydrated } from "./useHydrated";
 
 export interface Me {
   user: { id: string; name: string; email: string } | null;
@@ -14,12 +15,20 @@ export interface Me {
 
 const fetchMe = () => fetchJson<Me>("/api/me");
 
+/**
+ * The signed-in user. Until this component has hydrated it reports "still
+ * loading", even if another section already fetched the answer, so the first
+ * client render always matches the server HTML (see useHydrated).
+ */
 export function useMe() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["me"],
     queryFn: fetchMe,
     staleTime: 30_000,
   });
+  const hydrated = useHydrated();
+  if (hydrated) return query;
+  return { ...query, data: undefined, isPending: true as const, isSuccess: false as const };
 }
 
 export interface BookmarkedItem extends MediaItem {
@@ -43,7 +52,8 @@ export function useBookmarkKeys() {
   const me = useMe();
   const signedIn = Boolean(me.data?.user);
   const { data } = useBookmarks(signedIn);
-  return new Set((data ?? []).map(itemKey));
+  // A disabled query can still hold cached data; only trust it when signed in.
+  return new Set(signedIn ? (data ?? []).map(itemKey) : []);
 }
 
 /**

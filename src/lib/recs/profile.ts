@@ -48,11 +48,14 @@ export async function rebuildAffinity(userId: string) {
 }
 
 /**
- * Call after any new signal, from a route handler. The user's profile updates
- * right away; the shared item-similarity table is rebuilt (throttled) after
- * the response is sent, which also works on serverless.
+ * Call after any new signal, from a route handler. Both rebuilds run after the
+ * response is sent (which also works on serverless), so saving a bookmark or
+ * rating doesn't wait on them. Recommendations rebuild the profile on demand
+ * anyway, so nothing is ever shown from a stale profile.
  */
 export async function onSignal(userId: string, opts: { affectsCollaborative?: boolean } = {}) {
-  await rebuildAffinity(userId).catch((e) => console.error("affinity rebuild failed", e));
-  if (opts.affectsCollaborative) after(() => maybeRebuildSimilarity());
+  after(async () => {
+    await rebuildAffinity(userId).catch((e) => console.error("affinity rebuild failed", e));
+    if (opts.affectsCollaborative) await maybeRebuildSimilarity();
+  });
 }

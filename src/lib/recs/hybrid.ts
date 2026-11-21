@@ -98,6 +98,29 @@ export function diversify(ranked: Ranked[], limit: number, maxShare = DIVERSITY_
   return picked;
 }
 
+/**
+ * Keeps explanations varied. When one reason ("Popular with people who saved
+ * X") would label more than `maxRepeat` picks, the extra picks fall back to
+ * their other true reason (genre match or a different seed title). The
+ * ranking itself is unchanged; only the label is.
+ */
+export function varyReasons(
+  ranked: Ranked[],
+  alternativeFor: (r: Ranked) => string | undefined,
+  maxRepeat = 2,
+): Ranked[] {
+  const used = new Map<string, number>();
+  return ranked.map((r) => {
+    let reason = r.reason;
+    if ((used.get(reason) ?? 0) >= maxRepeat) {
+      const alt = alternativeFor(r);
+      if (alt && (used.get(alt) ?? 0) < maxRepeat) reason = alt;
+    }
+    used.set(reason, (used.get(reason) ?? 0) + 1);
+    return reason === r.reason ? r : { ...r, reason };
+  });
+}
+
 /** Cosine similarity between a title's genres (binary) and the affinity vector. */
 export function genreMatch(genreIds: number[], affinity: Map<number, number>): number {
   const genres = canonicalGenres(genreIds);

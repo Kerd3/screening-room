@@ -9,17 +9,14 @@ export const GET = handle(async () => {
   const userId = await getUserId();
   if (!userId) return Response.json({ user: null });
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true, email: true },
-  });
-  if (!user) return Response.json({ user: null });
-
-  const [unreadAlerts, unseenShares, pendingFriends] = await Promise.all([
+  // One round trip: the user and the three badge counts are fetched together.
+  const [user, unreadAlerts, unseenShares, pendingFriends] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true } }),
     db.alert.count({ where: { userId, readAt: null } }),
     db.share.count({ where: { toUserId: userId, seenAt: null } }),
     db.friendship.count({ where: { addresseeId: userId, status: "PENDING" } }),
   ]);
+  if (!user) return Response.json({ user: null });
   return Response.json({ user, unreadAlerts, unseenShares, pendingFriends });
 });
 

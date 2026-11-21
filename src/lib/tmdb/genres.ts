@@ -41,7 +41,10 @@ export const TV_GENRES: Record<number, string> = {
 
 export function genresFor(type: MediaType) {
   const map = type === "movie" ? MOVIE_GENRES : TV_GENRES;
-  return Object.entries(map).map(([id, name]) => ({ id: Number(id), name }));
+  // Alphabetical: object keys that are numbers iterate in numeric (id) order.
+  return Object.entries(map)
+    .map(([id, name]) => ({ id: Number(id), name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function genreName(id: number): string | undefined {

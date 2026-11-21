@@ -93,8 +93,8 @@ export function FriendsView() {
                 : add.data?.status === "ACCEPTED"
                   ? `You and ${add.data.name} are now friends.`
                   : add.data
-                    ? `Request sent to ${add.data.name}.`
-                    : "They'll see your request next time they open Friends."}
+                    ? `Request sent to ${add.data.name}. They'll see it next time they open Friends.`
+                    : "Use the email they signed up with."}
             </p>
           </section>
 
@@ -137,6 +137,7 @@ export function FriendsView() {
                     <button
                       onClick={() => setViewing(f)}
                       aria-pressed={viewing?.id === f.id}
+                      aria-label={`See ${f.name}’s bookmarks`}
                       className="h-11 px-2 text-[15px] text-usher underline-offset-4 hover:text-paper hover:underline aria-pressed:text-tungsten"
                     >
                       See bookmarks

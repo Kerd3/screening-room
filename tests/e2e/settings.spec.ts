@@ -75,7 +75,7 @@ test("turning off bookmark sharing hides your list from friends", async ({ page,
   // Now the friend is refused, in the API and in the UI.
   expect((await friend.request.get(`/api/friends/${ownerId}/bookmarks`)).status()).toBe(403);
   await friend.goto("/friends");
-  await friend.getByRole("button", { name: "See bookmarks" }).click();
+  await friend.getByRole("button", { name: "See Owner Person’s bookmarks" }).click();
   await expect(friend.getByText("This friend keeps their bookmarks private.")).toBeVisible();
   await friendContext.close();
 });

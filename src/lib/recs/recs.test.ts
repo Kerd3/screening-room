@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildUserVectors, computeItemSimilarity, scoreForUser } from "./collaborative";
-import { blend, diversify, genreMatch, weightsFor, type Candidate } from "./hybrid";
+import { blend, diversify, genreMatch, varyReasons, weightsFor, type Candidate } from "./hybrid";
 import { computeAffinity, decay, genresMentioned, topGenres } from "./signals";
 import type { MediaItem } from "@/lib/tmdb/types";
 
@@ -122,6 +122,16 @@ describe("hybrid ranking", () => {
     const picked = diversify(ranked, 10);
     expect(picked).toHaveLength(10);
     expect(picked.slice(0, 8).filter((r) => r.item.genreIds[0] === 27).length).toBe(4);
+  });
+
+  it("varies repeated explanations without changing the order", () => {
+    const ranked = [1, 2, 3, 4, 5].map((id) => ({ item: item(id, [878]), score: 1 - id / 10, reason: "Popular with people who saved Alien" }));
+    const alt = (r: { item: { id: number } }) => (r.item.id === 5 ? undefined : `Because you bookmarked Title ${r.item.id * 10}`);
+    const out = varyReasons(ranked, alt, 2);
+    expect(out.map((r) => r.item.id)).toEqual([1, 2, 3, 4, 5]); // same ranking
+    expect(out.filter((r) => r.reason === "Popular with people who saved Alien")).toHaveLength(3); // 2 + one with no alternative
+    expect(out[2].reason).toBe("Because you bookmarked Title 30");
+    expect(out[4].reason).toBe("Popular with people who saved Alien");
   });
 
   it("scores genre overlap with cosine similarity", () => {

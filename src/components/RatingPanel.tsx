@@ -78,7 +78,8 @@ export function RatingPanel({ type, tmdbId, title }: { type: MediaType; tmdbId: 
               if (score) save.mutate();
             }}
           >
-            <div role="radiogroup" aria-label={`Rate ${title} from 1 to 10`} className="flex flex-wrap gap-1">
+            {/* A fixed 5 x 2 grid, so the scale never wraps as 8 + 2. */}
+            <div role="radiogroup" aria-label={`Rate ${title} from 1 to 10`} className="grid w-fit grid-cols-5 gap-2">
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                 <button
                   key={n}

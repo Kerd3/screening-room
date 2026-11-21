@@ -59,15 +59,16 @@ Browse movies and TV series, bookmark what you want to watch, and get recommenda
  Browser (React client components, TanStack Query)
    │  infinite queries, optimistic bookmark mutations
    ▼
- Next.js route handlers  /api/*  ── Zod validation ── inbound sliding-window limiter (per user or IP)
+ Next.js route handlers  /api/*  ── Zod validation ── inbound sliding-window limiter (Redis, per user or IP)
    │
-   ├─ catalog.ts ─► tmdb client ─► TieredCache ─► TokenBucket ─► withRetry ─► api.themoviedb.org
+   ├─ catalog.ts ─► tmdb client ─► TieredCache ─► shared token bucket (Redis) ─► local TokenBucket ─► withRetry ─► api.themoviedb.org
    │                                 │  tier 1: in-process LRU
    │                                 │  tier 2: Postgres ApiCache (shared by all instances, survives restarts)
    │
    ├─ recs/  signals → GenreAffinity · item-item CF → ItemSimilarity · hybrid blend
    ├─ alerts.ts  TvSnapshot diff → Alert  (Vercel Cron, daily)
-   └─ Prisma 7 + Neon Postgres (pg adapter)
+   ├─ Prisma 7 + Neon Postgres (pg adapter)
+   └─ Upstash Redis: rate-limit counters shared by every serverless instance
 ```
 
 Also used: iron-session for sessions, Zod for request validation, and MSW to mock TMDB in tests.

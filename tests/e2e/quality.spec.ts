@@ -28,6 +28,26 @@ test("title pages get their own tab title", async ({ page }) => {
   await expect(page).toHaveTitle("The Matrix (1999) | Screening Room");
 });
 
+test("link previews: crawlers get per-title tags and a working image", async ({ request }) => {
+  // LinkedIn's crawler; Next.js sends bots fully rendered <head> metadata.
+  const ua = { "user-agent": "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)" };
+  const html = await (await request.get("/title/movie/603", { headers: ua })).text();
+  const meta = (prop: string) => html.match(new RegExp(`<meta (?:property|name)="${prop}" content="([^"]*)"`))?.[1];
+
+  expect(meta("og:title")).toBe("The Matrix (1999)");
+  expect(meta("og:description")?.length).toBeGreaterThan(20);
+  expect(meta("twitter:card")).toBe("summary_large_image");
+  const image = meta("og:image");
+  expect(image).toMatch(/\/title\/movie\/603\/opengraph-image/);
+
+  const res = await request.get(new URL(image!).pathname + new URL(image!).search);
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toBe("image/png");
+
+  const home = await (await request.get("/", { headers: ua })).text();
+  expect(home).toMatch(/<meta property="og:image" content="[^"]*\/opengraph-image/);
+});
+
 test("friends' bookmark buttons say whose list they open", async ({ page, browser }) => {
   const owner = await signUp(page, { name: "Kiri Tane", email: `e2e.kiri${Date.now()}@example.com`, password: "e2e-password-2026" });
   const friendContext = await browser.newContext({ baseURL: test.info().project.use.baseURL });

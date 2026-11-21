@@ -41,8 +41,6 @@ export function TitleView({ type, id }: { type: MediaType; id: number }) {
 
   return (
     <article>
-      {/* React 19 hoists this into <head>, so each title page gets its own tab title. */}
-      <title>{`${d.title}${d.year ? ` (${d.year})` : ""} | Screening Room`}</title>
       <div className="relative -mx-4 overflow-hidden md:mx-0 md:rounded-panel">
         <div className="relative aspect-[16/9] max-h-[440px] w-full bg-stall md:aspect-[21/9]">
           {backdrop && <Image src={backdrop} alt="" fill preload sizes="(min-width: 1440px) 1352px, 100vw" className="object-cover" />}

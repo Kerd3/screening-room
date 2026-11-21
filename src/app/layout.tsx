@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Big_Shoulders, Instrument_Sans } from "next/font/google";
 import { Providers } from "@/components/Providers";
+import { siteUrl } from "@/lib/og";
 import "./globals.css";
 
 const display = Big_Shoulders({
@@ -16,10 +17,23 @@ const sans = Instrument_Sans({
   weight: ["400", "500", "600"],
 });
 
+const description =
+  "Browse movies and TV series, bookmark what you want to watch, and get recommendations from what you save.";
+
 export const metadata: Metadata = {
+  // Absolute base for preview-image and canonical URLs.
+  metadataBase: new URL(siteUrl()),
   title: { default: "Screening Room", template: "%s | Screening Room" },
-  description:
-    "Browse movies and TV series, bookmark what you want to watch, and get recommendations from what you save.",
+  description,
+  applicationName: "Screening Room",
+  openGraph: {
+    type: "website",
+    siteName: "Screening Room",
+    title: "Screening Room",
+    description,
+    locale: "en_US",
+  },
+  twitter: { card: "summary_large_image", title: "Screening Room", description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

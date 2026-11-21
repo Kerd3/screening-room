@@ -1,6 +1,38 @@
 # Screening Room
 
-An entertainment web app for browsing movies and TV series, bookmarking what you want to watch, and getting recommendations based on what you save.
+[![CI](https://github.com/Kerd3/screening-room/actions/workflows/ci.yml/badge.svg)](https://github.com/Kerd3/screening-room/actions/workflows/ci.yml)
+[![Live site](https://img.shields.io/badge/live-screening--room--snowy.vercel.app-f0b44c)](https://screening-room-snowy.vercel.app)
+
+Browse movies and TV series, bookmark what you want to watch, and get recommendations that explain themselves.
+
+**Try it:** [screening-room-snowy.vercel.app](https://screening-room-snowy.vercel.app). Log in with `demo@example.com` / `screening-demo` to see recommendations, friends and shared titles.
+
+![Screening Room home page: a featured film and the week's trending titles](docs/screenshots/home.jpg)
+
+## Highlights
+
+- **Built for a rate-limited API.**
+  - Every call to TMDB goes through a two-tier cache (memory, then Postgres), with request coalescing and stale-while-revalidate.
+  - A token bucket in Redis, shared by every serverless instance, keeps the app under TMDB's rate limit.
+  - Repeat browsing is served almost entirely from cache. The live `/stats` page shows the hit rate.
+- **Recommendations you can measure.**
+  - A hybrid of item-to-item collaborative filtering, genre preference and popularity, learned only from bookmarks, ratings and searches.
+  - An offline hold-out test puts it at **20.2% recall@10**: 1.5 times recommending popular titles, with 6 times the catalog coverage.
+  - Tuning is confirmed on unseen data with a significance check, and CI fails if quality drops.
+- **Tested end to end.** 52 unit tests and 42 Playwright browser tests (desktop and phone) run on every push, against a fresh Postgres database each time.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/for-you.jpg" alt="The For you shelf: each recommendation shows why it was picked"><br><sub>â€œFor youâ€: every pick says why it was chosen</sub></td>
+    <td width="50%"><img src="docs/screenshots/title.jpg" alt="Title page for Iron Man with bookmark and share actions"><br><sub>Title page with rating, reviews and sharing</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/stats.jpg" alt="Live cache and rate-limit counters"><br><sub><code>/stats</code>: live cache hit rate and rate-limit counters</sub></td>
+    <td width="50%"><img src="docs/screenshots/browse.jpg" alt="Movies page filtered to top-rated science fiction"><br><sub>Filters live in the URL, with infinite scroll</sub></td>
+  </tr>
+</table>
+
+**Stack:** Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS 4, Prisma 7 on Neon Postgres, Upstash Redis, TanStack Query, Vitest, Playwright. Deployed on Vercel.
 
 > Developed an entertainment web app with content organization, bookmarking, and personalized recommendations. Demonstrates third-party API integration, caching strategies for rate-limited APIs, and recommendation algorithms based on user interaction patterns.
 
@@ -13,30 +45,32 @@ An entertainment web app for browsing movies and TV series, bookmarking what you
 | Filters | Movies and TV filter by genre (multi-select), sort (popular, top rated, newest) and decade. TV adds a still-airing or ended filter. Filters live in the URL, so a filtered view can be shared |
 | Bookmarks | Add or remove from any poster, with optimistic updates. Bookmarks are split into movies and series, and sort by date saved or title |
 | Ratings and reviews | Rate 1 to 10 with an optional review. Each title shows the average rating and the reviews posted in the app |
-| Recommendations | A "For you" shelf that explains each pick ("Because you bookmarked…", "Popular with people who saved…") |
+| Recommendations | A "For you" shelf that explains each pick ("Because you bookmarkedâ€¦", "Popular with people who savedâ€¦") |
 | Bookmarked together | Detail pages show what other people saved alongside this title |
 | Social | Friend requests by email, sharing a title with a note, a shared-with-you inbox, and viewing a friend's bookmarks |
 | Season alerts | New seasons or announced air dates for bookmarked series appear in the bell icon |
 | `/stats` | Live cache hit rate, upstream calls, queue depth, 429s and retries |
+| Settings | Display name, bookmark privacy, season alerts, and movies/series filter for "For you" |
+| Link previews | Shared links show a preview card: each title's backdrop, name, year and rating, generated on the fly |
 
 ## Architecture
 
 ```
  Browser (React client components, TanStack Query)
-   │  infinite queries, optimistic bookmark mutations
-   ▼
- Next.js route handlers  /api/*  ── Zod validation ── inbound sliding-window limiter (per user or IP)
-   │
-   ├─ catalog.ts ─► tmdb client ─► TieredCache ─► TokenBucket ─► withRetry ─► api.themoviedb.org
-   │                                 │  tier 1: in-process LRU
-   │                                 │  tier 2: Postgres ApiCache (shared by all instances, survives restarts)
-   │
-   ├─ recs/  signals → GenreAffinity · item-item CF → ItemSimilarity · hybrid blend
-   ├─ alerts.ts  TvSnapshot diff → Alert  (Vercel Cron, daily)
-   └─ Prisma 7 + Neon Postgres (pg adapter)
+   â”‚  infinite queries, optimistic bookmark mutations
+   â–¼
+ Next.js route handlers  /api/*  â”€â”€ Zod validation â”€â”€ inbound sliding-window limiter (per user or IP)
+   â”‚
+   â”œâ”€ catalog.ts â”€â–º tmdb client â”€â–º TieredCache â”€â–º TokenBucket â”€â–º withRetry â”€â–º api.themoviedb.org
+   â”‚                                 â”‚  tier 1: in-process LRU
+   â”‚                                 â”‚  tier 2: Postgres ApiCache (shared by all instances, survives restarts)
+   â”‚
+   â”œâ”€ recs/  signals â†’ GenreAffinity Â· item-item CF â†’ ItemSimilarity Â· hybrid blend
+   â”œâ”€ alerts.ts  TvSnapshot diff â†’ Alert  (Vercel Cron, daily)
+   â””â”€ Prisma 7 + Neon Postgres (pg adapter)
 ```
 
-**Stack:** Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS 4, Prisma 7 with Neon Postgres, iron-session, TanStack Query, Zod, Vitest and MSW. Deployed on Vercel.
+Also used: iron-session for sessions, Zod for request validation, and MSW to mock TMDB in tests.
 
 **On serverless:** rate limits are kept in Upstash Redis and the second cache tier in Postgres, so both are shared by every instance. Only the first, in-memory cache tier is per instance. Work that should outlive a response (rebuilding similarity, background season checks) runs in `after()`.
 
@@ -83,12 +117,12 @@ All TMDB traffic goes through one function, `tmdb.get()` in `src/lib/tmdb/client
 
 There is no viewing history. Preference is inferred from what people save, rate and search for (`src/lib/recs/`).
 
-1. **Signals → genre profile** (`signals.ts`). Each signal adds weight to the title's genres. Weights decay with a 30-day half-life, and TV's combined genres (such as "Sci-Fi & Fantasy") map onto movie genres so one profile covers both.
+1. **Signals â†’ genre profile** (`signals.ts`). Each signal adds weight to the title's genres. Weights decay with a 30-day half-life, and TV's combined genres (such as "Sci-Fi & Fantasy") map onto movie genres so one profile covers both.
 
    | Signal | Weight |
    |---|---|
    | Bookmark | +3 |
-   | Rating | (score − 5.5) × 0.8, so a 2/10 counts against the genre |
+   | Rating | (score âˆ’ 5.5) Ã— 0.8, so a 2/10 counts against the genre |
    | Clicked search result | +1 |
    | Genre word in a search | +0.5 |
 
@@ -99,7 +133,7 @@ There is no viewing history. Preference is inferred from what people save, rate 
    - The same table powers "Bookmarked together".
 3. **Content-based** (`recommend.ts`). Candidates come from TMDB's related titles for your five most recent favorites, plus a discover query on your top three genres. Each is scored by cosine between its genres and your profile.
 4. **Hybrid blend** (`hybrid.ts`).
-   - The score is `0.5·CF + 0.35·content + 0.15·popularity`.
+   - The score is `0.5Â·CF + 0.35Â·content + 0.15Â·popularity`.
    - Below 5 signals (cold start), the weights shift to `0.15 / 0.7 / 0.15`.
    - Anything you've already bookmarked or rated is excluded.
    - A greedy diversity pass keeps any one genre to 40% of the shelf.
@@ -155,7 +189,7 @@ Results on that data (373 titles, 101 users, 3,369 bookmarks and ratings):
 **Outcome: the current settings stayed.**
 - Keeping more neighbors per title (100 instead of 30) looked about 6% better on validation.
 - On the unseen test splits the gain was only +0.9% NDCG and +1.1% recall, with no coverage cost.
-- The paired check put it within the noise (+0.0017 ± 0.0052 per split), so it wasn't shipped.
+- The paired check put it within the noise (+0.0017 Â± 0.0052 per split), so it wasn't shipped.
 - It's a candidate to re-test once there's more real data.
 
 Both searches are in [docs/recommendation-tuning.md](docs/recommendation-tuning.md).
@@ -181,10 +215,10 @@ Requirements: Node 20 or later.
 
 2. Copy `.env.example` to `.env` and fill it in:
    - **`DATABASE_URL`** and **`DATABASE_URL_UNPOOLED`**: a free Neon Postgres database. Use a development branch, not the production one (see Environments and databases below). `npx vercel env pull .env.local` copies the Development values.
-   - **`TMDB_READ_TOKEN`**: free from themoviedb.org → Settings → API → *API Read Access Token*.
+   - **`TMDB_READ_TOKEN`**: free from themoviedb.org â†’ Settings â†’ API â†’ *API Read Access Token*.
    - **`SESSION_PASSWORD`**: any random string of 32 or more characters.
    - **`CRON_SECRET`**: any random string.
-   - **`KV_REST_API_URL`** and **`KV_REST_API_TOKEN`** (optional): an Upstash Redis database that shares rate limits across servers. On Vercel, add one under Storage → Upstash. Without them, limits are counted per server.
+   - **`KV_REST_API_URL`** and **`KV_REST_API_TOKEN`** (optional): an Upstash Redis database that shares rate limits across servers. On Vercel, add one under Storage â†’ Upstash. Without them, limits are counted per server.
 
    ```bash
    cp .env.example .env

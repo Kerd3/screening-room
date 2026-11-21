@@ -6,6 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   npm run test:e2e                       starts `npm run dev` (or reuses one on :3000)
  *   E2E_BASE_URL=https://… npm run test:e2e  runs against a deployed site instead
  *   E2E_DATABASE_URL=postgres://…          points the dev server at a separate test database
+ *   E2E_WEB_COMMAND="npm run start"         serves a production build instead of `next dev` (CI)
  *
  * Tests create throwaway users (e2e.*@example.com); global teardown deletes them.
  */
@@ -35,7 +36,8 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "npm run dev",
+        // CI builds first and sets E2E_WEB_COMMAND="npm run start" to test the production build.
+        command: process.env.E2E_WEB_COMMAND ?? "npm run dev",
         url: baseURL,
         reuseExistingServer: true,
         timeout: 180_000,

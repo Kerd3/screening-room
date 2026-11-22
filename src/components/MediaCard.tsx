@@ -16,6 +16,8 @@ export function MediaCard({
   reason,
   onOpen,
   className = "",
+  headingLevel = 3,
+  sizes = POSTER_SIZES,
 }: {
   item: MediaItem;
   bookmarked: boolean;
@@ -24,8 +26,13 @@ export function MediaCard({
   reason?: string;
   onOpen?: () => void;
   className?: string;
+  /** 2 when the card sits directly under the page's h1 (grids); 3 under a section h2 (shelves). */
+  headingLevel?: 2 | 3;
+  /** Rendered poster width, so the browser downloads the right size (grids vs fixed-width shelves). */
+  sizes?: string;
 }) {
   const poster = tmdbImage(item.posterPath, "poster");
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   const href = `/title/${item.mediaType}/${item.id}`;
 
   return (
@@ -37,7 +44,7 @@ export function MediaCard({
               src={poster}
               alt=""
               fill
-              sizes={POSTER_SIZES}
+              sizes={sizes}
               preload={preload}
               loading={preload ? undefined : "lazy"}
               className="object-cover transition-[filter] duration-200 group-hover:brightness-110"
@@ -48,9 +55,9 @@ export function MediaCard({
             </div>
           )}
         </div>
-        <h3 className="mt-3 line-clamp-2 text-base font-semibold leading-snug text-paper group-hover:underline group-hover:decoration-tungsten/70 group-hover:underline-offset-4">
+        <Heading className="mt-3 line-clamp-2 text-base font-semibold leading-snug text-paper group-hover:underline group-hover:decoration-tungsten/70 group-hover:underline-offset-4">
           {item.title}
-        </h3>
+        </Heading>
       </Link>
 
       <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-usher">

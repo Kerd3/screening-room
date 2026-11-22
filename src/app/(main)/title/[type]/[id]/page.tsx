@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { HydrationBoundary } from "@tanstack/react-query";
 import { TitleView } from "@/components/TitleView";
+import { loadTitlePage } from "@/lib/prefetch";
 import { getTitleForMeta, shortOverview } from "@/lib/titleMeta";
 
 /**
@@ -37,5 +39,13 @@ async function TitleFromParams({ params }: { params: PageProps<"/title/[type]/[i
   const { type, id } = await params;
   const tmdbId = Number(id);
   if ((type !== "movie" && type !== "tv") || !Number.isInteger(tmdbId) || tmdbId <= 0) notFound();
-  return <TitleView type={type} id={tmdbId} />;
+
+  // Rendered into the HTML (cached hourly), so the backdrop and title show
+  // before the JavaScript loads; seeds the same query key TitleView uses.
+  const state = await loadTitlePage(type, tmdbId);
+  return (
+    <HydrationBoundary state={state ?? undefined}>
+      <TitleView type={type} id={tmdbId} />
+    </HydrationBoundary>
+  );
 }

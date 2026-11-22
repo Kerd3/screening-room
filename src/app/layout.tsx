@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Big_Shoulders, Instrument_Sans } from "next/font/google";
+import { preconnect } from "react-dom";
 import { Providers } from "@/components/Providers";
 import { siteUrl } from "@/lib/og";
 import "./globals.css";
@@ -37,6 +38,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  // Nearly every page shows TMDB images; open that connection early.
+  preconnect("https://image.tmdb.org");
   return (
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
       <body className="min-h-dvh">

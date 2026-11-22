@@ -1,8 +1,16 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { tmdb } from "@/lib/tmdb";
-import { toMediaDetail, toPaged } from "@/lib/tmdb/normalize";
-import type { MediaDetail, MediaItem, MediaType, Paged, TmdbDetail, TmdbPaged } from "@/lib/tmdb/types";
+import { toMediaDetail, toPaged, toWatchOptions } from "@/lib/tmdb/normalize";
+import type {
+  MediaDetail,
+  MediaItem,
+  MediaType,
+  Paged,
+  TmdbDetail,
+  TmdbPaged,
+  TmdbWatchProviders,
+} from "@/lib/tmdb/types";
 
 export type SortKey = "popular" | "top" | "newest";
 export type TvStatus = "any" | "airing" | "ended";
@@ -61,6 +69,12 @@ export async function getDetail(type: MediaType, id: number): Promise<MediaDetai
   const detail = toMediaDetail(raw, type);
   await snapshotTitle(detail).catch(() => {}); // best effort
   return detail;
+}
+
+/** Streaming, rental and purchase options for a title in one country. */
+export async function getWatchOptions(type: MediaType, id: number, region: string) {
+  const raw = await tmdb.get<TmdbWatchProviders>(`/${type}/${id}/watch/providers`, {}, "detail");
+  return toWatchOptions(raw, region);
 }
 
 /** TMDB's own "recommendations" for a title (used for Similar titles). */

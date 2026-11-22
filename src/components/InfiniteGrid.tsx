@@ -80,6 +80,7 @@ export function InfiniteGrid({
         {items.map((item, i) => (
           <MediaCard
             key={itemKey(item)}
+            headingLevel={2}
             item={item}
             preload={i < 6}
             bookmarked={bookmarks.has(itemKey(item))}

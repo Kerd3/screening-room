@@ -54,7 +54,8 @@ export function BookmarksView() {
           Found {filtered.length} {filtered.length === 1 ? "result" : "results"} for &lsquo;{rawQuery}&rsquo; in your
           bookmarks
         </h1>
-        <Grid items={filtered} />
+        {/* Directly under the h1 here, so card titles are h2. */}
+        <Grid items={filtered} headingLevel={2} />
       </>
     );
   }
@@ -128,11 +129,11 @@ function Section({ title, items }: { title: string; items: BookmarkedItem[] }) {
   );
 }
 
-function Grid({ items }: { items: BookmarkedItem[] }) {
+function Grid({ items, headingLevel = 3 }: { items: BookmarkedItem[]; headingLevel?: 2 | 3 }) {
   return (
     <div className={GRID}>
       {items.map((item, i) => (
-        <MediaCard key={itemKey(item)} item={item} bookmarked preload={i < 6} />
+        <MediaCard key={itemKey(item)} item={item} bookmarked preload={i < 6} headingLevel={headingLevel} />
       ))}
     </div>
   );

@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
     // re-optimizing through Next's image server.
     loader: "custom",
     loaderFile: "./src/lib/tmdb/imageLoader.ts",
+    // Offer the browser TMDB's real size buckets, so the width it picks is
+    // the file it gets (Next's defaults like 384 would round up to w500).
+    imageSizes: [92, 154, 185, 342],
+    deviceSizes: [500, 780, 1280],
   },
   turbopack: {
     rules: {

@@ -46,7 +46,7 @@ export function Nav() {
       <Link
         href="/"
         className="display hidden px-2 text-[28px] text-tungsten sm:mr-auto sm:block lg:mr-0 lg:mb-8"
-        aria-label="Screening Room home"
+        aria-label="SR, Screening Room home"
       >
         SR
       </Link>

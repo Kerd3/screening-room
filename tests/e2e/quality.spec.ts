@@ -28,6 +28,21 @@ test("title pages get their own tab title", async ({ page }) => {
   await expect(page).toHaveTitle("The Matrix (1999) | Screening Room");
 });
 
+test("where to watch: shows providers and remembers the chosen country", async ({ page }) => {
+  await page.goto("/title/movie/1726");
+  const section = page.locator("section", { has: page.getByRole("heading", { name: "Where to watch" }) });
+  const country = section.getByRole("combobox");
+  await expect(country).toBeVisible();
+
+  await country.selectOption("GB");
+  await expect(country).toHaveValue("GB");
+  // Either some UK services, or the "isn't available" message: never an empty section.
+  await expect(section.getByRole("link").or(section.getByText(/isn’t available/)).first()).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator("section", { has: page.getByRole("heading", { name: "Where to watch" }) }).getByRole("combobox")).toHaveValue("GB");
+});
+
 test("link previews: crawlers get per-title tags and a working image", async ({ request }) => {
   // LinkedIn's crawler; Next.js sends bots fully rendered <head> metadata.
   const ua = { "user-agent": "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)" };

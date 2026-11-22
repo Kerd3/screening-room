@@ -3,13 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
 import { BookmarkButton } from "./BookmarkButton";
 import { ErrorNotice } from "./Notice";
 import { Row } from "./Row";
 import { SearchResults } from "./SearchResults";
 import { fetchJson } from "@/lib/client/fetcher";
 import { itemKey, useBookmarkKeys, useMe } from "@/lib/client/hooks";
+import { HOME_SHELF_URLS } from "@/lib/homeShelves";
 import { genreName } from "@/lib/tmdb/genres";
 import { tmdbImage } from "@/lib/tmdb/images";
 import type { MediaItem, Paged } from "@/lib/tmdb/types";
@@ -22,21 +22,38 @@ export interface Recommendations {
 
 const get = <T,>(url: string) => () => fetchJson<T>(url);
 
-export function HomeView() {
-  const q = useSearchParams().get("q")?.trim();
+/** Titles per shelf: about two screens of scrolling, and a third fewer cards to render than 20. */
+const SHELF_SIZE = 12;
+
+/**
+ * q comes from the server page (not useSearchParams), so Home can be
+ * server-rendered with its data instead of rendering only in the browser.
+ */
+export function HomeView({ q }: { q?: string }) {
   if (q) return <SearchResults q={q} type="all" />;
   return <Shelves />;
+}
+
+/** Shown in the static shell while the server renders Home's content. */
+export function HomeSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading">
+      <div className="relative -mx-4 mb-4 overflow-hidden md:mx-0 md:rounded-panel">
+        <div className="aspect-[4/5] max-h-[640px] w-full bg-stall sm:aspect-[16/9] md:aspect-[21/9]" />
+      </div>
+    </div>
+  );
 }
 
 function Shelves() {
   const { data: me } = useMe();
   const signedIn = Boolean(me?.user);
-  const trending = useQuery({ queryKey: ["trending", "all"], queryFn: get<Paged<MediaItem>>("/api/trending?type=all") });
-  const movies = useQuery({ queryKey: ["trending", "movie"], queryFn: get<Paged<MediaItem>>("/api/trending?type=movie&page=2") });
-  const series = useQuery({ queryKey: ["trending", "tv"], queryFn: get<Paged<MediaItem>>("/api/trending?type=tv") });
+  const trending = useQuery({ queryKey: ["trending", "all"], queryFn: get<Paged<MediaItem>>(HOME_SHELF_URLS[0]) });
+  const movies = useQuery({ queryKey: ["trending", "movie"], queryFn: get<Paged<MediaItem>>(HOME_SHELF_URLS[1]) });
+  const series = useQuery({ queryKey: ["trending", "tv"], queryFn: get<Paged<MediaItem>>(HOME_SHELF_URLS[2]) });
   const recs = useQuery({
     queryKey: ["recommendations"],
-    queryFn: get<Recommendations>("/api/recommendations?limit=20"),
+    queryFn: get<Recommendations>(`/api/recommendations?limit=${SHELF_SIZE}`),
     enabled: signedIn,
   });
 
@@ -49,7 +66,11 @@ function Shelves() {
       <h1 className="sr-only">Home</h1>
       <Hero item={featured} />
 
-      <Row title="Trending this week" items={trending.data?.results.filter((i) => i !== featured)} loading={trending.isPending} />
+      <Row
+        title="Trending this week"
+        items={trending.data?.results.filter((i) => i !== featured).slice(0, SHELF_SIZE)}
+        loading={trending.isPending}
+      />
 
       {signedIn ? (
         <Row
@@ -76,8 +97,8 @@ function Shelves() {
         </Row>
       )}
 
-      <Row title="Movies people are watching" items={movies.data?.results} loading={movies.isPending} />
-      <Row title="Series people are watching" items={series.data?.results} loading={series.isPending} />
+      <Row title="Movies people are watching" items={movies.data?.results.slice(0, SHELF_SIZE)} loading={movies.isPending} />
+      <Row title="Series people are watching" items={series.data?.results.slice(0, SHELF_SIZE)} loading={series.isPending} />
     </>
   );
 }
@@ -85,7 +106,14 @@ function Shelves() {
 /** The one bold element: the week's top title, lit like a screen in a dark room. */
 function Hero({ item }: { item?: MediaItem }) {
   const bookmarks = useBookmarkKeys();
-  if (!item) return <div className="aspect-[16/9] max-h-[560px] w-full rounded-panel bg-stall md:aspect-[21/9]" aria-hidden />;
+  // Same box as the loaded hero, so nothing below shifts when it arrives.
+  if (!item) {
+    return (
+      <div aria-hidden className="relative -mx-4 mb-4 overflow-hidden md:mx-0 md:rounded-panel">
+        <div className="aspect-[4/5] max-h-[640px] w-full bg-stall sm:aspect-[16/9] md:aspect-[21/9]" />
+      </div>
+    );
+  }
 
   const backdrop = tmdbImage(item.backdropPath, "backdrop")!;
   const genres = item.genreIds.map(genreName).filter(Boolean).slice(0, 3);

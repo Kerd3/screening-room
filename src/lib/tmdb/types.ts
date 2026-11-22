@@ -40,7 +40,40 @@ export interface Paged<T> {
   results: T[];
 }
 
+export interface WatchProvider {
+  id: number;
+  name: string;
+  logoPath: string | null;
+}
+
+/** Where a title can be watched in one country (data from JustWatch, via TMDB). */
+export interface WatchOptions {
+  region: string;
+  /** Countries with any availability, for the region picker. */
+  regions: string[];
+  /** TMDB's watch page for this title and region (links out to the providers). */
+  link: string | null;
+  stream: WatchProvider[];
+  rent: WatchProvider[];
+  buy: WatchProvider[];
+}
+
 // Raw TMDB response shapes (only the fields this app reads).
+
+interface TmdbProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string | null;
+  display_priority: number;
+}
+
+export interface TmdbWatchProviders {
+  id: number;
+  results: Record<
+    string,
+    { link?: string; flatrate?: TmdbProvider[]; free?: TmdbProvider[]; ads?: TmdbProvider[]; rent?: TmdbProvider[]; buy?: TmdbProvider[] }
+  >;
+}
 export interface TmdbListItem {
   id: number;
   media_type?: string;

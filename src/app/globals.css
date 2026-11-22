@@ -31,13 +31,13 @@
     }
   }
 
+  /* The lamp warms up from dim, not from invisible: an image at opacity 0
+     doesn't count as painted, which would delay Largest Contentful Paint. */
   @keyframes lamp {
     from {
-      opacity: 0;
-      filter: brightness(0.4);
+      filter: brightness(0.3);
     }
     to {
-      opacity: 1;
       filter: brightness(1);
     }
   }

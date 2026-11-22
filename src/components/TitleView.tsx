@@ -9,6 +9,7 @@ import { ErrorNotice } from "./Notice";
 import { RatingPanel } from "./RatingPanel";
 import { Row } from "./Row";
 import { ShareButton } from "./ShareButton";
+import { WhereToWatch } from "./WhereToWatch";
 import { fetchJson } from "@/lib/client/fetcher";
 import { itemKey, useBookmarkKeys, useMe } from "@/lib/client/hooks";
 import { tmdbImage } from "@/lib/tmdb/images";
@@ -93,6 +94,8 @@ export function TitleView({ type, id }: { type: MediaType; id: number }) {
           )}
         </div>
       </div>
+
+      <WhereToWatch type={type} id={id} title={d.title} />
 
       {d.seasons.length > 0 && (
         <section aria-labelledby="seasons" className="mt-16">

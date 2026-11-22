@@ -77,6 +77,7 @@ export function Row({
             : items.map((item) => (
                 <MediaCard
                   key={itemKey(item)}
+                  sizes="(min-width: 768px) 180px, 150px"
                   item={item}
                   bookmarked={bookmarks.has(itemKey(item))}
                   reason={reasons?.[itemKey(item)]}

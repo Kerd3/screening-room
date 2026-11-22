@@ -6,6 +6,8 @@ import type {
   TmdbDetail,
   TmdbListItem,
   TmdbPaged,
+  TmdbWatchProviders,
+  WatchOptions,
 } from "./types";
 
 function yearOf(date?: string | null): number | null {
@@ -42,6 +44,32 @@ export function toPaged(raw: TmdbPaged, fallbackType?: MediaType): Paged<MediaIt
     results: raw.results
       .map((r) => toMediaItem(r, fallbackType))
       .filter((r): r is MediaItem => r !== null),
+  };
+}
+
+/**
+ * Picks one country's options from TMDB's watch-provider data. "Stream"
+ * merges subscription, free and ad-supported services. Each group is ordered
+ * by TMDB's display priority and has no duplicates.
+ */
+export function toWatchOptions(raw: TmdbWatchProviders, region: string): WatchOptions {
+  const regions = Object.keys(raw.results ?? {}).sort();
+  const r = raw.results?.[region];
+  const group = (...lists: (TmdbWatchProviders["results"][string]["flatrate"] | undefined)[]) => {
+    const seen = new Set<number>();
+    return lists
+      .flatMap((l) => l ?? [])
+      .sort((a, b) => a.display_priority - b.display_priority)
+      .filter((p) => !seen.has(p.provider_id) && (seen.add(p.provider_id), true))
+      .map((p) => ({ id: p.provider_id, name: p.provider_name, logoPath: p.logo_path }));
+  };
+  return {
+    region,
+    regions,
+    link: r?.link ?? null,
+    stream: group(r?.flatrate, r?.free, r?.ads),
+    rent: group(r?.rent),
+    buy: group(r?.buy),
   };
 }
 

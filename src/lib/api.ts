@@ -1,5 +1,7 @@
 import "server-only";
 import { unstable_rethrow } from "next/navigation";
+import { after } from "next/server";
+import { reportError } from "@/lib/report";
 import { z, ZodError } from "zod";
 import type { TmdbConfigError, TmdbError } from "@/lib/tmdb";
 import type { Limiter } from "@/lib/ratelimit-inbound";
@@ -40,9 +42,13 @@ export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response
       }
       if (isNamed<TmdbError>(err, "TmdbError")) {
         const status = err.status === 404 ? 404 : 502;
+        // An unexpected TMDB failure (not a missing title) is worth knowing about.
+        if (status === 502) after(() => reportError(err, { kind: "tmdb", status: String(err.status) }));
         return Response.json({ error: err.message }, { status });
       }
       console.error(err);
+      // Reported after the response is sent, so the user isn't kept waiting.
+      after(() => reportError(err, { kind: "api" }));
       return Response.json({ error: "Something went wrong on the server." }, { status: 500 });
     }
   };

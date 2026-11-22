@@ -263,6 +263,13 @@ To refresh `dev` with current production data, reset the branch from its parent 
 
 `.github/workflows/ci.yml` runs on every push and pull request. It runs lint, type-check (`npm run typecheck`) and the unit tests, then builds the app and runs the Playwright suite (including the axe accessibility scans in `tests/e2e/a11y.spec.ts`) against the production build. The Playwright report is attached to each run. CI needs one repository secret, `TMDB_READ_TOKEN`, and a Dependabot copy of it so dependency PRs can run CI too.
 
+**Production monitoring:**
+- **Vercel Speed Insights** records real visitors' load times (Core Web Vitals) per page.
+- **Sentry** captures errors from the browser, server rendering and API routes. API routes turn unexpected errors into tidy 500s, so the handler reports them explicitly, after the response is sent.
+- Sentry stays off unless `NEXT_PUBLIC_SENTRY_DSN` is set, and its browser SDK loads only then, so pages carry no extra JavaScript otherwise.
+- Personal data collection is switched off: no cookies, headers, request bodies, query strings or variable values (`src/lib/sentryPrivacy.ts`).
+- `POST /api/debug/error` (protected by `CRON_SECRET`) throws a test error to check the pipeline.
+
 **Repository safety:**
 - `main` requires all three CI jobs to pass and can't be force-pushed or deleted.
 - Dependabot opens weekly update PRs (minor and patch updates grouped together) plus security fixes.

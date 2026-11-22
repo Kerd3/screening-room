@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Big_Shoulders, Instrument_Sans } from "next/font/google";
 import { preconnect } from "react-dom";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "@/components/Providers";
 import { siteUrl } from "@/lib/og";
 import "./globals.css";
@@ -44,6 +45,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
       <body className="min-h-dvh">
         <Providers>{children}</Providers>
+        {/* Real-visitor load times (Core Web Vitals) in the Vercel dashboard. A tiny
+            script; it only reports on Vercel deployments with Speed Insights enabled. */}
+        <SpeedInsights />
       </body>
     </html>
   );

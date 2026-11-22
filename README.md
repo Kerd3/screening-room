@@ -19,7 +19,8 @@ Browse movies and TV series, bookmark what you want to watch, and get recommenda
   - A hybrid of item-to-item collaborative filtering, genre preference and popularity, learned only from bookmarks, ratings and searches.
   - An offline hold-out test puts it at **20.2% recall@10**: 1.5 times recommending popular titles, with 6 times the catalog coverage.
   - Tuning is confirmed on unseen data with a significance check, and CI fails if quality drops.
-- **Tested end to end.** 52 unit tests and 42 Playwright browser tests (desktop and phone) run on every push, against a fresh Postgres database each time.
+- **Tested end to end.** 56 unit tests and 56 Playwright browser tests run on every push, against a fresh Postgres database each time. They cover desktop and phone layouts, plus automated WCAG 2.2 AA accessibility scans of every page.
+- **Fast and accessible.** Lighthouse on the live site, simulating a mid-range phone, scores 100 for accessibility on every page. Performance is 72 on Home, 88 on Movies and 92 on title pages, with almost no layout shift.
 
 <table>
   <tr>
@@ -52,6 +53,7 @@ Browse movies and TV series, bookmark what you want to watch, and get recommenda
 | `/stats` | Live cache hit rate, upstream calls, queue depth, 429s and retries |
 | Settings | Display name, bookmark privacy, season alerts, and movies/series filter for "For you" |
 | Link previews | Shared links show a preview card: each title's backdrop, name, year and rating, generated on the fly |
+| Where to watch | Each title lists where to stream, rent or buy it in your country (JustWatch data via TMDB). The country is detected from your location or browser language, and you can change it |
 
 ## Architecture
 
@@ -259,7 +261,13 @@ To refresh `dev` with current production data, reset the branch from its parent 
 
 ### Continuous integration
 
-`.github/workflows/ci.yml` runs on every push and pull request. It runs lint, type-check (`npm run typecheck`) and the unit tests, then builds the app and runs the Playwright suite against the production build. The Playwright report is attached to each run. CI needs one repository secret: `TMDB_READ_TOKEN`.
+`.github/workflows/ci.yml` runs on every push and pull request. It runs lint, type-check (`npm run typecheck`) and the unit tests, then builds the app and runs the Playwright suite (including the axe accessibility scans in `tests/e2e/a11y.spec.ts`) against the production build. The Playwright report is attached to each run. CI needs one repository secret, `TMDB_READ_TOKEN`, and a Dependabot copy of it so dependency PRs can run CI too.
+
+**Repository safety:**
+- `main` requires all three CI jobs to pass and can't be force-pushed or deleted.
+- Dependabot opens weekly update PRs (minor and patch updates grouped together) plus security fixes.
+- CodeQL scans the code, and secret scanning with push protection blocks committed credentials.
+- See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
 ### Scripts
 

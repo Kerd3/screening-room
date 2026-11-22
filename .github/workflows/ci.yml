@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -54,7 +54,7 @@ jobs:
       DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/screening_room
       TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -90,7 +90,7 @@ jobs:
       CRON_SECRET: ci-cron-secret
       E2E_WEB_COMMAND: npm run start
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24

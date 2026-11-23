@@ -19,9 +19,12 @@ model User {
   createdAt    DateTime @default(now())
   /// Last time season alerts were checked for this user's bookmarks.
   alertsCheckedAt DateTime?
+  /// Last time the weekly digest email was sent to this user.
+  digestSentAt    DateTime?
 
   preference     UserPreference?
   bookmarks      Bookmark[]
+  watched        Watched[]
   ratings        Rating[]
   searches       SearchHistory[]
   genreAffinity  GenreAffinity[]
@@ -38,6 +41,8 @@ model UserPreference {
   preferredMediaType String  @default("all")
   bookmarksPublic    Boolean @default(true)
   alertsEnabled      Boolean @default(true)
+  /// Opt-in weekly email: new-season alerts and fresh recommendations.
+  weeklyDigest       Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -64,6 +69,7 @@ model Title {
   updatedAt       DateTime  @updatedAt
 
   bookmarks    Bookmark[]
+  watched      Watched[]
   ratings      Rating[]
   alerts       Alert[]
   shares       Share[]
@@ -88,6 +94,23 @@ model Bookmark {
   @@unique([userId, titleId])
   @@index([userId, createdAt])
   @@index([titleId])
+}
+
+/// Titles the user has seen. A real viewing signal for the recommender, and
+/// watched titles are never recommended.
+model Watched {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  titleId   Int
+  watchedAt DateTime @default(now())
+  /// "app" | "letterboxd" | "imdb"
+  source    String   @default("app")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, titleId])
+  @@index([userId, watchedAt])
 }
 
 model Rating {

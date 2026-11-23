@@ -56,6 +56,71 @@ export function useBookmarkKeys() {
   return new Set(signedIn ? (data ?? []).map(itemKey) : []);
 }
 
+export interface WatchedItem extends MediaItem {
+  watchedAt: string;
+  source: "app" | "letterboxd" | "imdb";
+}
+
+export function useWatched(enabled = true) {
+  return useQuery({
+    queryKey: ["watched"],
+    queryFn: () => fetchJson<{ items: WatchedItem[] }>("/api/watched"),
+    enabled,
+    staleTime: 60_000,
+    select: (d) => d.items,
+  });
+}
+
+/** Set of "type:id" keys of watched titles. */
+export function useWatchedKeys() {
+  const me = useMe();
+  const signedIn = Boolean(me.data?.user);
+  const { data } = useWatched(signedIn);
+  return new Set(signedIn ? (data ?? []).map(itemKey) : []);
+}
+
+/** Marks or unmarks a title as watched, optimistically like bookmarks. */
+export function useToggleWatched() {
+  const qc = useQueryClient();
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: async ({ item, watched }: { item: MediaItem; watched: boolean }) => {
+      if (watched) {
+        await fetchJson(`/api/watched?type=${item.mediaType}&tmdbId=${item.id}`, { method: "DELETE", keepalive: true });
+      } else {
+        await fetchJson("/api/watched", {
+          method: "POST",
+          body: JSON.stringify({ type: item.mediaType, tmdbId: item.id }),
+          keepalive: true,
+        });
+      }
+    },
+    onMutate: async ({ item, watched }) => {
+      const me = await qc.ensureQueryData({ queryKey: ["me"], queryFn: fetchMe });
+      if (!me.user) {
+        router.push(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+        throw new Error("signed-out");
+      }
+      await qc.cancelQueries({ queryKey: ["watched"] });
+      const prev = qc.getQueryData<{ items: WatchedItem[] }>(["watched"]);
+      const items = prev?.items ?? [];
+      const next = watched
+        ? items.filter((w) => itemKey(w) !== itemKey(item))
+        : [{ ...item, watchedAt: new Date().toISOString(), source: "app" as const }, ...items];
+      qc.setQueryData(["watched"], { items: next });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["watched"], ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["watched"] });
+      qc.invalidateQueries({ queryKey: ["recommendations"] });
+    },
+  });
+}
+
 /**
  * Toggles a bookmark with an optimistic update: the card flips immediately
  * and rolls back if the server rejects the change.

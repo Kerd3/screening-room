@@ -8,8 +8,9 @@ const parseGenres = (s: string) => JSON.parse(s) as number[];
 
 /** Loads every signal for a user (the last 500 searches at most). */
 export async function loadSignals(userId: string): Promise<Signal[]> {
-  const [bookmarks, ratings, searches] = await Promise.all([
+  const [bookmarks, watched, ratings, searches] = await Promise.all([
     db.bookmark.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
+    db.watched.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
     db.rating.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
     db.searchHistory.findMany({
       where: { userId },
@@ -20,6 +21,7 @@ export async function loadSignals(userId: string): Promise<Signal[]> {
   ]);
   return [
     ...bookmarks.map((b): Signal => ({ kind: "bookmark", at: b.createdAt, genreIds: parseGenres(b.title.genreIds) })),
+    ...watched.map((w): Signal => ({ kind: "watched", at: w.watchedAt, genreIds: parseGenres(w.title.genreIds) })),
     ...ratings.map((r): Signal => ({
       kind: "rating",
       at: r.updatedAt,

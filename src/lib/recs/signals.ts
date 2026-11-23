@@ -1,11 +1,13 @@
 import { canonicalGenres, MOVIE_GENRES, TV_GENRES } from "@/lib/tmdb/genres";
 
 /**
- * Implicit-signal weights. There's no viewing history, so preference comes from
- * what people save, rate, search for and click.
+ * Implicit-signal weights: what people save, mark as watched, rate, search for
+ * and click.
  */
 export const WEIGHTS = {
   bookmark: 3,
+  /** Weaker than a bookmark: seeing something isn't the same as liking it. Ratings say how it went. */
+  watched: 2,
   /** Centered on 5.5, so a 2/10 counts against a genre and a 9/10 counts for it. */
   rating: (score: number) => (score - 5.5) * 0.8,
   searchClick: 1,
@@ -21,9 +23,9 @@ export function decay(at: Date, now: Date) {
 }
 
 export interface Signal {
-  kind: "bookmark" | "rating" | "searchClick" | "searchQuery";
+  kind: "bookmark" | "watched" | "rating" | "searchClick" | "searchQuery";
   at: Date;
-  genreIds?: number[]; // the title's genres (bookmark, rating, click)
+  genreIds?: number[]; // the title's genres (bookmark, watched, rating, click)
   score?: number; // rating 1-10
   query?: string; // search text
 }
@@ -50,6 +52,7 @@ export function computeAffinity(signals: Signal[], now = new Date()): Map<number
   for (const s of signals) {
     const d = decay(s.at, now);
     if (s.kind === "bookmark") add(s.genreIds ?? [], WEIGHTS.bookmark * d);
+    if (s.kind === "watched") add(s.genreIds ?? [], WEIGHTS.watched * d);
     if (s.kind === "rating" && s.score) add(s.genreIds ?? [], WEIGHTS.rating(s.score) * d);
     if (s.kind === "searchClick") add(s.genreIds ?? [], WEIGHTS.searchClick * d);
     if (s.kind === "searchQuery" && s.query) add(genresMentioned(s.query), WEIGHTS.searchGenreMention * d);

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type ReactNode } from "react";
+import { ImportPanel } from "./ImportPanel";
 import { ErrorNotice } from "./Notice";
 import { ApiError, fetchJson } from "@/lib/client/fetcher";
 import { useMe, type Me } from "@/lib/client/hooks";
@@ -10,6 +11,9 @@ interface Preferences {
   bookmarksPublic: boolean;
   alertsEnabled: boolean;
   preferredMediaType: "all" | "movie" | "tv";
+  weeklyDigest: boolean;
+  /** False until the server has an email provider configured. */
+  emailConfigured: boolean;
 }
 
 const SHOW_ME = [
@@ -89,6 +93,15 @@ export function SettingsView() {
           checked={p.alertsEnabled}
           onChange={(v) => savePref.mutate({ alertsEnabled: v })}
         />
+        <div className="mt-8">
+          <Switch
+            label="Weekly email digest"
+            description={`Every Monday: new-season news for your shows and five fresh picks, sent to ${me.user.email}.`}
+            checked={p.weeklyDigest}
+            onChange={(v) => savePref.mutate({ weeklyDigest: v })}
+          />
+          {p.weeklyDigest && <DigestPreview configured={p.emailConfigured} />}
+        </div>
       </Section>
 
       <Section title="Recommendations">
@@ -120,6 +133,39 @@ export function SettingsView() {
           </div>
         </fieldset>
       </Section>
+
+      <Section title="Import your history" id="import">
+        <ImportPanel />
+      </Section>
+    </div>
+  );
+}
+
+function DigestPreview({ configured }: { configured: boolean }) {
+  const send = useMutation({
+    mutationFn: () => fetchJson<{ sentTo: string }>("/api/digest/preview", { method: "POST" }),
+  });
+  if (!configured) {
+    return (
+      <p className="mt-3 text-[15px] text-usher">
+        Your choice is saved. Emails start once the site&rsquo;s email service is set up.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={() => send.mutate()}
+        disabled={send.isPending}
+        className="h-11 rounded-full border border-line px-5 text-[15px] font-semibold text-paper transition-colors duration-150 hover:bg-stall disabled:opacity-60"
+      >
+        {send.isPending ? "Sending…" : "Send me a preview"}
+      </button>
+      <p role="status" aria-live="polite" className="text-[15px] text-usher">
+        {send.isSuccess && `Sent to ${send.data.sentTo}.`}
+        {send.isError && <span className="text-exit">{send.error.message}</span>}
+      </p>
     </div>
   );
 }
@@ -141,10 +187,10 @@ function SettingsSkeleton() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children, id: anchor }: { title: string; children: ReactNode; id?: string }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="border-t border-line py-8 first-of-type:mt-6">
+    <section id={anchor} aria-labelledby={id} className="scroll-mt-24 border-t border-line py-8 first-of-type:mt-6">
       <h2 id={id} className="mb-6 text-xl font-semibold text-paper">
         {title}
       </h2>

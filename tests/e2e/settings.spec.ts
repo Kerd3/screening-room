@@ -20,7 +20,7 @@ test("opens from the account menu", async ({ page }) => {
 test("changes the display name everywhere it appears", async ({ page }) => {
   const user = await signUp(page);
   await page.goto("/settings");
-  await expect(page.getByText(user.email)).toBeVisible();
+  await expect(page.getByText(user.email, { exact: true })).toBeVisible();
 
   const field = page.getByLabel("Display name");
   await expect(field).toHaveValue(user.name);

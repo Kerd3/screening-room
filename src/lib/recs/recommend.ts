@@ -16,20 +16,21 @@ const key = (i: { mediaType: string; id: number }) => `${i.mediaType}:${i.id}`;
 export const MIN_RECOMMENDED_RATING = 5.5;
 
 export async function getRecommendations(userId: string, limit = 20) {
-  const [bookmarks, ratings, pref] = await Promise.all([
+  const [bookmarks, ratings, watched, pref] = await Promise.all([
     db.bookmark.findMany({ where: { userId }, include: { title: true }, orderBy: { createdAt: "desc" } }),
     db.rating.findMany({ where: { userId }, include: { title: true }, orderBy: { updatedAt: "desc" } }),
+    db.watched.findMany({ where: { userId }, include: { title: true }, orderBy: { watchedAt: "desc" } }),
     db.userPreference.findUnique({ where: { userId }, select: { preferredMediaType: true } }),
   ]);
-  const signalCount = bookmarks.length + ratings.length;
+  const signalCount = bookmarks.length + ratings.length + watched.length;
   if (signalCount === 0) return { items: [], reasons: {}, strategy: "popular" as const };
 
   // "Show me" in Settings: movies, series, or both.
   const onlyType: MediaType | null =
     pref?.preferredMediaType === "movie" || pref?.preferredMediaType === "tv" ? pref.preferredMediaType : null;
 
-  // Everything already saved or rated is excluded (rated means watched).
-  const seen = new Set([...bookmarks, ...ratings].map((r) => key(titleToMediaItem(r.title))));
+  // Everything already saved, watched or rated is excluded (rated means watched).
+  const seen = new Set([...bookmarks, ...ratings, ...watched].map((r) => key(titleToMediaItem(r.title))));
 
   const affinity = await rebuildAffinity(userId);
   const candidates = new Map<string, Candidate>();
@@ -74,6 +75,7 @@ export async function getRecommendations(userId: string, limit = 20) {
   const seeds = [
     ...ratings.filter((r) => r.score >= 8).map((r) => ({ t: r.title, why: `Because you rated ${r.title.title} ${r.score}/10` })),
     ...bookmarks.map((b) => ({ t: b.title, why: `Because you bookmarked ${b.title.title}` })),
+    ...watched.map((w) => ({ t: w.title, why: `Because you watched ${w.title.title}` })),
   ].slice(0, 5);
   const top = topGenres(affinity, 3);
 

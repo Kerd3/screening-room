@@ -9,14 +9,16 @@ import { ErrorNotice } from "./Notice";
 import { RatingPanel } from "./RatingPanel";
 import { Row } from "./Row";
 import { ShareButton } from "./ShareButton";
+import { WatchedButton } from "./WatchedButton";
 import { WhereToWatch } from "./WhereToWatch";
 import { fetchJson } from "@/lib/client/fetcher";
-import { itemKey, useBookmarkKeys, useMe } from "@/lib/client/hooks";
+import { itemKey, useBookmarkKeys, useMe, useWatchedKeys } from "@/lib/client/hooks";
 import { tmdbImage } from "@/lib/tmdb/images";
 import type { MediaDetail, MediaItem, MediaType } from "@/lib/tmdb/types";
 
 export function TitleView({ type, id }: { type: MediaType; id: number }) {
   const bookmarks = useBookmarkKeys();
+  const watched = useWatchedKeys();
   const { data: me } = useMe();
   const q = useQuery({
     queryKey: ["title", type, id],
@@ -81,6 +83,7 @@ export function TitleView({ type, id }: { type: MediaType; id: number }) {
           <p className="mt-6 max-w-[65ch] text-paper/90">{d.overview || "No synopsis available."}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <BookmarkButton item={d} bookmarked={bookmarked} variant="solid" />
+            <WatchedButton item={d} watched={watched.has(itemKey(d))} />
             {me?.user && <ShareButton item={d} />}
           </div>
           {d.mediaType === "tv" && d.nextEpisodeDate && (

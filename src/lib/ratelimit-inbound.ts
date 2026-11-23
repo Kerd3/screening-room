@@ -113,11 +113,15 @@ const g = globalThis as unknown as { __limiters?: Record<string, Limiter> };
 const make = (name: string, limit: number, windowSec: number) =>
   ((g.__limiters ??= {})[name] ??= createLimiter({ limit, windowSec, remote: redisSlidingWindow(name, limit, windowSec) }));
 
-/** Named limiters: requests per minute per signed-in user, or per IP. */
+/** Named limiters: requests per window per signed-in user, or per IP. */
 export const limiters = {
   search: make("search", 30, 60),
   browse: make("browse", 120, 60),
   write: make("write", 60, 60),
+  /** Import batches of up to 50 rows: 100 per 10 minutes covers a 5,000-row file. */
+  import: make("import", 100, 600),
+  /** Digest preview emails: 3 per hour. */
+  email: make("email", 3, 3600),
 };
 
 export const rateLimitBackend = () => (getRedis() ? "redis" : "memory");

@@ -45,13 +45,16 @@ Browse movies and TV series, bookmark what you want to watch, and get recommenda
 | Search | A search bar on every page. Home searches everything, Movies and TV search their own type, and Bookmarks filters your saved list locally |
 | Filters | Movies and TV filter by genre (multi-select), sort (popular, top rated, newest) and decade. TV adds a still-airing or ended filter. Filters live in the URL, so a filtered view can be shared |
 | Bookmarks | Add or remove from any poster, with optimistic updates. Bookmarks are split into movies and series, and sort by date saved or title |
+| Watch history | "Mark as watched" on any title, and a Watch history page grouped by month. Watched titles count toward your taste and are never recommended |
+| Import | Bring your history from Letterboxd (watched, diary, ratings, watchlist) or IMDb (ratings, watchlist) exports. The browser reads the CSV and sends it in batches of 50; IMDb ids match TMDB exactly, Letterboxd titles match by name and year |
 | Ratings and reviews | Rate 1 to 10 with an optional review. Each title shows the average rating and the reviews posted in the app |
 | Recommendations | A "For you" shelf that explains each pick ("Because you bookmarked…", "Popular with people who saved…") |
 | Bookmarked together | Detail pages show what other people saved alongside this title |
 | Social | Friend requests by email, sharing a title with a note, a shared-with-you inbox, and viewing a friend's bookmarks |
 | Season alerts | New seasons or announced air dates for bookmarked series appear in the bell icon |
+| Weekly digest | Opt-in Monday email with new-season news and five fresh picks, sent through Resend, with a one-click unsubscribe link |
 | `/stats` | Live cache hit rate, upstream calls, queue depth, 429s and retries |
-| Settings | Display name, bookmark privacy, season alerts, and movies/series filter for "For you" |
+| Settings | Display name, bookmark privacy, season alerts, weekly digest, history import, and movies/series filter for "For you" |
 | Link previews | Shared links show a preview card: each title's backdrop, name, year and rating, generated on the fly |
 | Where to watch | Each title lists where to stream, rent or buy it in your country (JustWatch data via TMDB). The country is detected from your location or browser language, and you can change it |
 
@@ -118,13 +121,14 @@ All TMDB traffic goes through one function, `tmdb.get()` in `src/lib/tmdb/client
 
 ## Recommendations from implicit signals
 
-There is no viewing history. Preference is inferred from what people save, rate and search for (`src/lib/recs/`).
+Preference is inferred from what people save, mark as watched (or import), rate and search for (`src/lib/recs/`).
 
 1. **Signals → genre profile** (`signals.ts`). Each signal adds weight to the title's genres. Weights decay with a 30-day half-life, and TV's combined genres (such as "Sci-Fi & Fantasy") map onto movie genres so one profile covers both.
 
    | Signal | Weight |
    |---|---|
    | Bookmark | +3 |
+   | Watched | +2 (seeing something isn't the same as liking it; ratings say how it went) |
    | Rating | (score − 5.5) × 0.8, so a 2/10 counts against the genre |
    | Clicked search result | +1 |
    | Genre word in a search | +0.5 |
@@ -269,6 +273,7 @@ To refresh `dev` with current production data, reset the branch from its parent 
 - Sentry stays off unless `NEXT_PUBLIC_SENTRY_DSN` is set, and its browser SDK loads only then, so pages carry no extra JavaScript otherwise.
 - Personal data collection is switched off: no cookies, headers, request bodies, query strings or variable values (`src/lib/sentryPrivacy.ts`).
 - `POST /api/debug/error` (protected by `CRON_SECRET`) throws a test error to check the pipeline.
+- Both scheduled jobs (`check-seasons` daily, `weekly-digest` on Mondays) report to Sentry cron monitors, so a failed, overrunning or missed run raises an issue. A Sentry uptime monitor checks the home page every 5 minutes.
 - Vercel builds upload source maps to Sentry (`withSentryConfig` in `next.config.ts`, using a `SENTRY_AUTH_TOKEN` with upload-only scope), so stack traces show real files and lines. Browser source maps are deleted after upload and never served. Builds without the token skip the upload.
 
 **Repository safety:**

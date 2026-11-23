@@ -269,6 +269,7 @@ To refresh `dev` with current production data, reset the branch from its parent 
 - Sentry stays off unless `NEXT_PUBLIC_SENTRY_DSN` is set, and its browser SDK loads only then, so pages carry no extra JavaScript otherwise.
 - Personal data collection is switched off: no cookies, headers, request bodies, query strings or variable values (`src/lib/sentryPrivacy.ts`).
 - `POST /api/debug/error` (protected by `CRON_SECRET`) throws a test error to check the pipeline.
+- Vercel builds upload source maps to Sentry (`withSentryConfig` in `next.config.ts`, using a `SENTRY_AUTH_TOKEN` with upload-only scope), so stack traces show real files and lines. Browser source maps are deleted after upload and never served. Builds without the token skip the upload.
 
 **Repository safety:**
 - `main` requires all three CI jobs to pass and can't be force-pushed or deleted.

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
@@ -26,4 +27,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Uploads source maps to Sentry after production builds so stack traces show
+// real file names and lines. Without SENTRY_AUTH_TOKEN (local builds, CI) the
+// upload is skipped and the build is otherwise unchanged. Browser source maps
+// are deleted after upload, so they are never served to visitors.
+export default withSentryConfig(nextConfig, {
+  org: "ezekeil-third-cruz",
+  project: "screening-room",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  telemetry: false,
+  // Errors only: skip tracing-related build features and code.
+  buildTimeInstrumentation: false,
+  routeManifestInjection: false,
+  bundleSizeOptimizations: { excludeDebugStatements: true, excludeTracing: true },
+  // Keep the release out of browser chunks so their file names (and visitors'
+  // caches) don't change on every deploy. The server reports the release.
+  release: { inject: false },
+});

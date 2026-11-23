@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { TitleView } from "@/components/TitleView";
@@ -13,6 +14,9 @@ import { getTitleForMeta, shortOverview } from "@/lib/titleMeta";
  */
 export async function generateMetadata({ params }: PageProps<"/title/[type]/[id]">): Promise<Metadata> {
   const { type, id } = await params;
+  // Request-time on purpose: the TMDB cache checks expiry against the clock,
+  // which Next.js won't allow while prerendering the static shell.
+  await connection();
   const d = await getTitleForMeta(type, id);
   if (!d) return { title: "Title not found" };
   const name = `${d.title}${d.year ? ` (${d.year})` : ""}`;

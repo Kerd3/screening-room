@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { handle, HttpError } from "@/lib/api";
 import { checkSeasons } from "@/lib/alerts";
+import { withCronMonitor } from "@/lib/cronMonitor";
 
 export const maxDuration = 60;
 
@@ -20,7 +21,8 @@ function authorized(req: Request) {
  */
 const run = handle(async (req: Request) => {
   if (!authorized(req)) throw new HttpError(401, "Missing or wrong CRON_SECRET.");
-  return Response.json(await checkSeasons());
+  // Keep in sync with the schedule in vercel.json.
+  return Response.json(await withCronMonitor("check-seasons", "0 9 * * *", checkSeasons));
 });
 
 export const GET = run;

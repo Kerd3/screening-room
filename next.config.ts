@@ -41,6 +41,11 @@ export default withSentryConfig(nextConfig, {
   buildTimeInstrumentation: false,
   routeManifestInjection: false,
   bundleSizeOptimizations: { excludeDebugStatements: true, excludeTracing: true },
+  suppressOnRouterTransitionStartWarning: true, // navigation tracing isn't used
+  // The browser sends errors straight to Sentry, so the SDK's auto-generated
+  // /sentry-tunnel relay on Vercel would be an unused public endpoint.
+  // (Setting this logs a deprecation notice at build time; it still works.)
+  tunnelRoute: false,
   // Keep the release out of browser chunks so their file names (and visitors'
   // caches) don't change on every deploy. The server reports the release.
   release: { inject: false },

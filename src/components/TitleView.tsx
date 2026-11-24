@@ -5,13 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 import { BookmarkButton } from "./BookmarkButton";
 import { POSTER_SIZES } from "./MediaCard";
-import { ErrorNotice } from "./Notice";
+import Link from "next/link";
+import { EmptyState, ErrorNotice } from "./Notice";
 import { RatingPanel } from "./RatingPanel";
 import { Row } from "./Row";
 import { ShareButton } from "./ShareButton";
 import { WatchedButton } from "./WatchedButton";
 import { WhereToWatch } from "./WhereToWatch";
-import { fetchJson } from "@/lib/client/fetcher";
+import { ApiError, fetchJson } from "@/lib/client/fetcher";
 import { itemKey, useBookmarkKeys, useMe, useWatchedKeys } from "@/lib/client/hooks";
 import { tmdbImage } from "@/lib/tmdb/images";
 import type { MediaDetail, MediaItem, MediaType } from "@/lib/tmdb/types";
@@ -31,7 +32,20 @@ export function TitleView({ type, id }: { type: MediaType; id: number }) {
   });
 
   if (q.isPending) return <div className="aspect-[21/9] w-full rounded-panel bg-stall motion-safe:animate-pulse" aria-busy="true" />;
-  if (q.isError) return <ErrorNotice error={q.error} onRetry={() => q.refetch()} />;
+  if (q.isError) {
+    // A title TMDB doesn't have: say so plainly instead of offering a retry that can't work.
+    if (q.error instanceof ApiError && q.error.status === 404) {
+      return (
+        <EmptyState title="We couldn't find that title">
+          It may have been removed from TMDB, or the link may be wrong.{" "}
+          <Link href={type === "tv" ? "/tv" : "/movies"} className="font-medium text-paper underline decoration-tungsten underline-offset-4">
+            Browse {type === "tv" ? "TV series" : "movies"}
+          </Link>
+        </EmptyState>
+      );
+    }
+    return <ErrorNotice error={q.error} onRetry={() => q.refetch()} />;
+  }
 
   const { detail: d, similar } = q.data;
   const backdrop = tmdbImage(d.backdropPath, "backdrop");

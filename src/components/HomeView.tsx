@@ -40,7 +40,7 @@ export function HomeSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading">
       <div className="relative -mx-4 mb-4 overflow-hidden md:mx-0 md:rounded-panel">
-        <div className="aspect-[4/5] max-h-[640px] w-full bg-stall sm:aspect-[16/9] md:aspect-[21/9]" />
+        <div className="aspect-[4/5] max-h-[640px] w-full bg-stall sm:aspect-[16/9] md:aspect-[21/9] md:min-h-[440px]" />
       </div>
     </div>
   );
@@ -167,7 +167,7 @@ function Hero({ item }: { item?: MediaItem }) {
   if (!item) {
     return (
       <div aria-hidden className="relative -mx-4 mb-4 overflow-hidden md:mx-0 md:rounded-panel">
-        <div className="aspect-[4/5] max-h-[640px] w-full bg-stall sm:aspect-[16/9] md:aspect-[21/9]" />
+        <div className="aspect-[4/5] max-h-[640px] w-full bg-stall sm:aspect-[16/9] md:aspect-[21/9] md:min-h-[440px]" />
       </div>
     );
   }
@@ -180,7 +180,7 @@ function Hero({ item }: { item?: MediaItem }) {
       aria-label="Featured this week"
       className="relative -mx-4 mb-4 overflow-hidden md:mx-0 md:rounded-panel"
     >
-      <div className="relative aspect-[4/5] max-h-[640px] w-full sm:aspect-[16/9] md:aspect-[21/9]">
+      <div className="relative aspect-[4/5] max-h-[640px] w-full sm:aspect-[16/9] md:aspect-[21/9] md:min-h-[440px]">
         <Image
           src={backdrop}
           alt=""
@@ -201,7 +201,16 @@ function Hero({ item }: { item?: MediaItem }) {
       </div>
 
       <div className="absolute inset-x-0 bottom-0 p-4 md:p-10">
-        <h2 className="display max-w-[14ch] text-[64px] text-paper md:text-[96px]">{item.title}</h2>
+        {/* Long titles step down a size, so they never climb out of the image. */}
+        <h2
+          className={`display text-paper ${
+            item.title.length > 22
+              ? "max-w-[20ch] text-[44px] md:text-[64px] xl:text-[80px]"
+              : "max-w-[14ch] text-[64px] md:text-[96px]"
+          }`}
+        >
+          {item.title}
+        </h2>
         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[15px] text-usher">
           {item.year && <span>{item.year}</span>}
           <span>{item.mediaType === "movie" ? "Movie" : "Series"}</span>

@@ -16,10 +16,11 @@ const key = (i: { mediaType: string; id: number }) => `${i.mediaType}:${i.id}`;
 export const MIN_RECOMMENDED_RATING = 5.5;
 
 export async function getRecommendations(userId: string, limit = 20) {
-  const [bookmarks, ratings, watched, pref] = await Promise.all([
+  const [bookmarks, ratings, watched, dismissed, pref] = await Promise.all([
     db.bookmark.findMany({ where: { userId }, include: { title: true }, orderBy: { createdAt: "desc" } }),
     db.rating.findMany({ where: { userId }, include: { title: true }, orderBy: { updatedAt: "desc" } }),
     db.watched.findMany({ where: { userId }, include: { title: true }, orderBy: { watchedAt: "desc" } }),
+    db.dismissal.findMany({ where: { userId }, select: { title: { select: { tmdbId: true, mediaType: true } } } }),
     db.userPreference.findUnique({ where: { userId }, select: { preferredMediaType: true } }),
   ]);
   const signalCount = bookmarks.length + ratings.length + watched.length;
@@ -29,8 +30,12 @@ export async function getRecommendations(userId: string, limit = 20) {
   const onlyType: MediaType | null =
     pref?.preferredMediaType === "movie" || pref?.preferredMediaType === "tv" ? pref.preferredMediaType : null;
 
-  // Everything already saved, watched or rated is excluded (rated means watched).
-  const seen = new Set([...bookmarks, ...ratings, ...watched].map((r) => key(titleToMediaItem(r.title))));
+  // Everything already saved, watched or rated is excluded (rated means watched),
+  // and so is anything marked "Not interested".
+  const seen = new Set([
+    ...[...bookmarks, ...ratings, ...watched].map((r) => key(titleToMediaItem(r.title))),
+    ...dismissed.map((d) => key({ mediaType: d.title.mediaType, id: d.title.tmdbId })),
+  ]);
 
   const affinity = await rebuildAffinity(userId);
   const candidates = new Map<string, Candidate>();

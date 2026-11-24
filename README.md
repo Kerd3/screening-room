@@ -48,7 +48,8 @@ Browse movies and TV series, bookmark what you want to watch, and get recommenda
 | Watch history | "Mark as watched" on any title, and a Watch history page grouped by month. Watched titles count toward your taste and are never recommended |
 | Import | Bring your history from Letterboxd (watched, diary, ratings, watchlist) or IMDb (ratings, watchlist) exports. The browser reads the CSV and sends it in batches of 50; IMDb ids match TMDB exactly, Letterboxd titles match by name and year |
 | Ratings and reviews | Rate 1 to 10 with an optional review. Each title shows the average rating and the reviews posted in the app |
-| Recommendations | A "For you" shelf that explains each pick ("Because you bookmarked…", "Popular with people who saved…") |
+| Recommendations | A "For you" shelf that explains each pick ("Because you bookmarked…", "Popular with people who saved…"). "Not interested" hides a pick for good (with Undo) and nudges its genres down |
+| Public profile | Opt-in page at `/u/handle` with favorites (rated 8+), recent watches, top genres and a link preview. Private by default; never shows email, reviews or bookmarks |
 | Bookmarked together | Detail pages show what other people saved alongside this title |
 | Social | Friend requests by email, sharing a title with a note, a shared-with-you inbox, and viewing a friend's bookmarks |
 | Season alerts | New seasons or announced air dates for bookmarked series appear in the bell icon |
@@ -129,6 +130,7 @@ Preference is inferred from what people save, mark as watched (or import), rate 
    |---|---|
    | Bookmark | +3 |
    | Watched | +2 (seeing something isn't the same as liking it; ratings say how it went) |
+   | "Not interested" | −1.5 (a mild push away; one dismissal shouldn't erase a favorite genre) |
    | Rating | (score − 5.5) × 0.8, so a 2/10 counts against the genre |
    | Clicked search result | +1 |
    | Genre word in a search | +0.5 |

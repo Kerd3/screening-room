@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Film, Star, Tv } from "lucide-react";
+import { EyeOff, Film, Star, Tv } from "lucide-react";
 import { BookmarkButton } from "./BookmarkButton";
 import { tmdbImage } from "@/lib/tmdb/images";
 import type { MediaItem } from "@/lib/tmdb/types";
@@ -15,6 +15,7 @@ export function MediaCard({
   preload = false,
   reason,
   onOpen,
+  onDismiss,
   className = "",
   headingLevel = 3,
   sizes = POSTER_SIZES,
@@ -25,6 +26,8 @@ export function MediaCard({
   /** Why this title is recommended; shown in lilac under the metadata. */
   reason?: string;
   onOpen?: () => void;
+  /** Shows a "Not interested" button (recommendations only). */
+  onDismiss?: () => void;
   className?: string;
   /** 2 when the card sits directly under the page's h1 (grids); 3 under a section h2 (shelves). */
   headingLevel?: 2 | 3;
@@ -83,6 +86,19 @@ export function MediaCard({
       <div className="absolute right-2 top-2">
         <BookmarkButton item={item} bookmarked={bookmarked} />
       </div>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label={`Not interested in ${item.title}`}
+          title="Not interested"
+          className="absolute left-2 top-2 flex size-11 items-center justify-center rounded-full bg-velvet/60 text-paper backdrop-blur-sm
+                     transition-[opacity,background-color] duration-150 hover:bg-velvet/90
+                     md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+        >
+          <EyeOff className="size-[18px]" aria-hidden />
+        </button>
+      )}
     </article>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { ImportPanel } from "./ImportPanel";
 import { ErrorNotice } from "./Notice";
@@ -12,6 +13,9 @@ interface Preferences {
   alertsEnabled: boolean;
   preferredMediaType: "all" | "movie" | "tv";
   weeklyDigest: boolean;
+  profilePublic: boolean;
+  /** Public profile address, set the first time the profile is made public. */
+  handle: string | null;
   /** False until the server has an email provider configured. */
   emailConfigured: boolean;
 }
@@ -84,6 +88,15 @@ export function SettingsView() {
           checked={p.bookmarksPublic}
           onChange={(v) => savePref.mutate({ bookmarksPublic: v })}
         />
+        <div className="mt-8">
+          <Switch
+            label="Public profile"
+            description="A page anyone with the link can see: your name, favorite titles (rated 8 or more), recent watches and top genres. Never your email, reviews or bookmarks."
+            checked={p.profilePublic}
+            onChange={(v) => savePref.mutate({ profilePublic: v })}
+          />
+          {p.profilePublic && p.handle && <ProfileLink handle={p.handle} />}
+        </div>
       </Section>
 
       <Section title="Notifications">
@@ -137,6 +150,28 @@ export function SettingsView() {
       <Section title="Import your history" id="import">
         <ImportPanel />
       </Section>
+    </div>
+  );
+}
+
+function ProfileLink({ handle }: { handle: string }) {
+  const [copied, setCopied] = useState(false);
+  const path = `/u/${handle}`;
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <Link href={path} className="font-medium text-paper underline decoration-tungsten underline-offset-4">
+        View your profile
+      </Link>
+      <button
+        type="button"
+        onClick={async () => {
+          await navigator.clipboard.writeText(location.origin + path).catch(() => {});
+          setCopied(true);
+        }}
+        className="h-11 rounded-full border border-line px-5 text-[15px] font-semibold text-paper transition-colors duration-150 hover:bg-stall"
+      >
+        {copied ? "Link copied" : "Copy link"}
+      </button>
     </div>
   );
 }

@@ -13,6 +13,7 @@ export function Row({
   loading,
   reasons,
   action,
+  onDismiss,
   children,
 }: {
   title: string;
@@ -20,6 +21,8 @@ export function Row({
   loading?: boolean;
   reasons?: Record<string, string>;
   action?: ReactNode;
+  /** Adds a "Not interested" button to each card. */
+  onDismiss?: (item: MediaItem) => void;
   /** Rendered instead of the shelf (e.g. an error or a sign-in prompt). */
   children?: ReactNode;
 }) {
@@ -65,6 +68,7 @@ export function Row({
         <div
           ref={scroller}
           tabIndex={0}
+          role="group"
           aria-label={`${title}, scrollable`}
           className="row-scroll -mx-4 flex gap-4 overflow-x-auto px-4 pb-4 md:-mx-8 md:gap-6 md:px-8"
         >
@@ -81,6 +85,7 @@ export function Row({
                   item={item}
                   bookmarked={bookmarks.has(itemKey(item))}
                   reason={reasons?.[itemKey(item)]}
+                  onDismiss={onDismiss && (() => onDismiss(item))}
                   className="w-[150px] shrink-0 snap-start md:w-[180px]"
                 />
               ))}

@@ -21,10 +21,13 @@ model User {
   alertsCheckedAt DateTime?
   /// Last time the weekly digest email was sent to this user.
   digestSentAt    DateTime?
+  /// Public profile address (/u/handle). Set when the profile is first made public.
+  handle          String?   @unique
 
   preference     UserPreference?
   bookmarks      Bookmark[]
   watched        Watched[]
+  dismissals     Dismissal[]
   ratings        Rating[]
   searches       SearchHistory[]
   genreAffinity  GenreAffinity[]
@@ -43,6 +46,8 @@ model UserPreference {
   alertsEnabled      Boolean @default(true)
   /// Opt-in weekly email: new-season alerts and fresh recommendations.
   weeklyDigest       Boolean @default(false)
+  /// Opt-in public profile at /u/handle (favorites, recent watches, top genres).
+  profilePublic      Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -70,6 +75,7 @@ model Title {
 
   bookmarks    Bookmark[]
   watched      Watched[]
+  dismissals   Dismissal[]
   ratings      Rating[]
   alerts       Alert[]
   shares       Share[]
@@ -111,6 +117,21 @@ model Watched {
 
   @@unique([userId, titleId])
   @@index([userId, watchedAt])
+}
+
+/// "Not interested" on a recommendation: never shown again, and a negative
+/// signal for the title's genres.
+model Dismissal {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  titleId   Int
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title Title @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, titleId])
+  @@index([userId, createdAt])
 }
 
 model Rating {

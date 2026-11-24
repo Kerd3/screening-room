@@ -8,9 +8,10 @@ const parseGenres = (s: string) => JSON.parse(s) as number[];
 
 /** Loads every signal for a user (the last 500 searches at most). */
 export async function loadSignals(userId: string): Promise<Signal[]> {
-  const [bookmarks, watched, ratings, searches] = await Promise.all([
+  const [bookmarks, watched, dismissed, ratings, searches] = await Promise.all([
     db.bookmark.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
     db.watched.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
+    db.dismissal.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
     db.rating.findMany({ where: { userId }, include: { title: { select: { genreIds: true } } } }),
     db.searchHistory.findMany({
       where: { userId },
@@ -22,6 +23,7 @@ export async function loadSignals(userId: string): Promise<Signal[]> {
   return [
     ...bookmarks.map((b): Signal => ({ kind: "bookmark", at: b.createdAt, genreIds: parseGenres(b.title.genreIds) })),
     ...watched.map((w): Signal => ({ kind: "watched", at: w.watchedAt, genreIds: parseGenres(w.title.genreIds) })),
+    ...dismissed.map((x): Signal => ({ kind: "dismissed", at: x.createdAt, genreIds: parseGenres(x.title.genreIds) })),
     ...ratings.map((r): Signal => ({
       kind: "rating",
       at: r.updatedAt,
@@ -40,10 +42,14 @@ export async function loadSignals(userId: string): Promise<Signal[]> {
 /** Recomputes a user's GenreAffinity rows from their signals. */
 export async function rebuildAffinity(userId: string) {
   const affinity = computeAffinity(await loadSignals(userId));
+  // Two rebuilds can overlap (one after a new signal, one from a recommendations
+  // request). skipDuplicates keeps the second from failing on rows the first
+  // just wrote; both compute from the same signals, so the result is the same.
   await db.$transaction([
     db.genreAffinity.deleteMany({ where: { userId } }),
     db.genreAffinity.createMany({
       data: [...affinity].map(([genreId, score]) => ({ userId, genreId, score })),
+      skipDuplicates: true,
     }),
   ]);
   return affinity;

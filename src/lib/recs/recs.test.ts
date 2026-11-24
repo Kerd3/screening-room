@@ -31,6 +31,21 @@ describe("signals", () => {
     expect(topGenres(aff, 2)).toEqual([878, 28]);
   });
 
+  it("counts watched titles for a genre and 'Not interested' against it, without erasing a favorite", () => {
+    const aff = computeAffinity(
+      [
+        { kind: "watched", at: now, genreIds: [35] }, // comedy
+        { kind: "bookmark", at: now, genreIds: [878] }, // sci-fi
+        { kind: "dismissed", at: now, genreIds: [878, 27] }, // a sci-fi horror pick
+      ],
+      now,
+    );
+    expect(aff.get(35)).toBe(2);
+    expect(aff.get(878)).toBe(1.5); // 3 - 1.5: still liked
+    expect(aff.get(27)).toBe(-1.5);
+    expect(topGenres(aff, 3)).toEqual([35, 878]);
+  });
+
   it("maps TV combined genres onto movie genres", () => {
     const aff = computeAffinity([{ kind: "bookmark", at: now, genreIds: [10765] }], now); // Sci-Fi & Fantasy
     expect([...aff.keys()].sort()).toEqual([14, 878]);

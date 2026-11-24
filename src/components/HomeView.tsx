@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { BookmarkButton } from "./BookmarkButton";
 import { ErrorNotice } from "./Notice";
 import { Row } from "./Row";
@@ -56,6 +57,7 @@ function Shelves() {
     queryFn: get<Recommendations>(`/api/recommendations?limit=${SHELF_SIZE}`),
     enabled: signedIn,
   });
+  const { hidden, dismiss, undo } = useDismiss();
 
   if (trending.isError) return <ErrorNotice error={trending.error} onRetry={() => trending.refetch()} />;
 
@@ -78,6 +80,23 @@ function Shelves() {
           items={recs.data?.items}
           loading={recs.isPending}
           reasons={recs.data?.reasons}
+          onDismiss={dismiss}
+          action={
+            <p role="status" aria-live="polite" className="text-[15px] text-usher">
+              {hidden && (
+                <>
+                  Hidden {hidden.title}.{" "}
+                  <button
+                    type="button"
+                    onClick={undo}
+                    className="inline-flex h-11 items-center px-1 font-medium text-paper underline decoration-tungsten underline-offset-4"
+                  >
+                    Undo
+                  </button>
+                </>
+              )}
+            </p>
+          }
         >
           {recs.isSuccess && recs.data.items.length === 0 ? (
             <p className="max-w-xl text-usher">
@@ -101,6 +120,44 @@ function Shelves() {
       <Row title="Series people are watching" items={series.data?.results.slice(0, SHELF_SIZE)} loading={series.isPending} />
     </>
   );
+}
+
+/**
+ * "Not interested" on a For you pick: the card disappears at once, the server
+ * records it (never shown again, a small push away from its genres), and the
+ * last one can be undone.
+ */
+function useDismiss() {
+  const qc = useQueryClient();
+  const [hidden, setHidden] = useState<MediaItem | null>(null);
+  const ref = (i: MediaItem) => `type=${i.mediaType}&tmdbId=${i.id}`;
+
+  async function dismiss(item: MediaItem) {
+    qc.setQueryData<Recommendations>(["recommendations"], (old) =>
+      old ? { ...old, items: old.items.filter((i) => itemKey(i) !== itemKey(item)) } : old,
+    );
+    setHidden(item);
+    try {
+      await fetchJson("/api/recommendations/dismissed", {
+        method: "POST",
+        body: JSON.stringify({ type: item.mediaType, tmdbId: item.id }),
+        keepalive: true,
+      });
+    } catch {
+      setHidden(null);
+      qc.invalidateQueries({ queryKey: ["recommendations"] }); // put it back
+    }
+  }
+
+  async function undo() {
+    if (!hidden) return;
+    const item = hidden;
+    setHidden(null);
+    await fetchJson(`/api/recommendations/dismissed?${ref(item)}`, { method: "DELETE" }).catch(() => {});
+    qc.invalidateQueries({ queryKey: ["recommendations"] });
+  }
+
+  return { hidden, dismiss, undo };
 }
 
 /** The one bold element: the week's top title, lit like a screen in a dark room. */
